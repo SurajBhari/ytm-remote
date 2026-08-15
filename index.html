@@ -95,6 +95,17 @@ img{display:block}
   border-radius:var(--r-sm);padding:3px 8px;
 }
 .chip a{color:inherit}
+/* action pills under the title; the phone layout only. the pill shape is the
+   reference app's own, not a default. unslop-ignore */
+.actions{display:none;gap:8px;margin-top:14px;flex-wrap:wrap}
+.chip-btn,.actions .ib{
+  display:inline-flex;align-items:center;gap:7px;justify-content:center;
+  height:38px;width:auto;padding:0 15px;border-radius:999px; /* unslop-ignore: the app's own chip shape */
+  background:rgba(255,255,255,.1);color:var(--text);font-size:13px;font-weight:500;
+}
+.chip-btn:hover,.actions .ib:hover{background:rgba(255,255,255,.16)}
+.chip-btn svg,.actions .ib svg{width:19px;height:19px;fill:currentColor}
+.actions .ib.on{color:var(--accent)}
 
 /* ============ side pane ============ */
 .side{flex:1 1 56%;min-width:0;display:flex;flex-direction:column;min-height:0}
@@ -104,7 +115,42 @@ img{display:block}
 }
 .tab:hover{color:var(--text);background:var(--hover)}
 .tab[aria-selected="true"]{color:var(--text);background:var(--surface)}
-.pane{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+.pane{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+
+/* ---- lyrics ---- */
+.lyr-pane{
+  /* soften the edges so lines enter and leave rather than being cut */
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 10%,#000 88%,transparent);
+  mask-image:linear-gradient(to bottom,transparent,#000 10%,#000 88%,transparent);
+}
+.lyr-head{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:2px 2px 12px;font-size:12px;color:var(--text-3);
+}
+.lyr-badge{
+  font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--accent);border:1px solid currentColor;border-radius:var(--r-sm);padding:1px 6px;
+}
+.lyrics{max-width:620px;margin:0 auto}
+/* the trailing space lets the closing lines still reach the centre */
+.lyrics.synced{padding-bottom:46%}
+.lyric{
+  display:block;width:100%;text-align:left;
+  font-size:19px;line-height:1.45;font-weight:500;
+  color:rgba(255,255,255,.38);
+  padding:9px 10px;border-radius:var(--r-sm);
+  transition:color .3s ease;
+  overflow-wrap:anywhere;
+}
+.lyrics.synced .lyric{cursor:pointer}
+.lyrics.synced .lyric:hover{color:rgba(255,255,255,.72);background:var(--hover)}
+.lyric.done{color:rgba(255,255,255,.28)}
+.lyric.on{color:var(--text)}
+.lyric.blank{padding:4px 10px;color:rgba(255,255,255,.22)}
+.lyric.blank.on{color:var(--accent)}
+/* plain lyrics have no timing, so nothing is clickable and everything stays readable */
+.lyrics.plain .lyric{color:rgba(255,255,255,.82);cursor:default;font-size:17px}
+@media(max-width:719px){.lyric{font-size:20px}}
 .pane::-webkit-scrollbar{width:8px}
 .pane::-webkit-scrollbar-thumb{background:#4a4a4a;border-radius:var(--r-sm)}
 .pane-bar{display:flex;gap:8px;align-items:center;padding:2px 0 10px;flex-wrap:wrap}
@@ -170,7 +216,8 @@ img{display:block}
 .track[aria-disabled="true"]{cursor:default}
 .track[aria-disabled="true"] .knob{opacity:0}
 /* transport sits on the left, with the readout beside it */
-.pb-transport{display:flex;align-items:center;gap:4px;flex:1 1 0;min-width:0}
+/* no min-width:0 here: the readout must never be shrunk into a clip */
+.pb-transport{display:flex;align-items:center;gap:4px;flex:1 1 auto}
 .ctrls{display:flex;align-items:center;gap:4px}
 .times{
   display:flex;align-items:center;gap:4px;margin-left:10px;white-space:nowrap;
@@ -225,40 +272,53 @@ img{display:block}
   .nav{display:flex}
   /* only the pane matching the active tab is mounted */
   body[data-view="player"] .side{display:none}
-  body[data-view="queue"] .now,body[data-view="search"] .now{display:none}
+  body:not([data-view="player"]) .now{display:none}
 
-  /* mini player: track info leads, then just play and next */
-  body[data-view="queue"] .bar,body[data-view="search"] .bar{height:56px;gap:8px}
-  body[data-view="queue"] .pb-track,body[data-view="search"] .pb-track{order:1;flex:1 1 auto;min-width:0}
-  body[data-view="queue"] .pb-transport,body[data-view="search"] .pb-transport{order:2;flex:none}
-  body[data-view="queue"] .times,body[data-view="search"] .times{display:none}
-  body[data-view="queue"] #bPrev,body[data-view="search"] #bPrev,
-  body[data-view="queue"] .step,body[data-view="search"] .step,
-  body[data-view="queue"] #bLike,body[data-view="search"] #bLike,
-  body[data-view="queue"] #bDislike,body[data-view="search"] #bDislike,
-  body[data-view="queue"] .pb-right,body[data-view="search"] .pb-right{display:none}
-  body[data-view="queue"] .ib.play,body[data-view="search"] .ib.play{width:38px;height:38px}
+  /* mini player: track info leads, then just play and next.
+     stated once for every view that is not the player, so new tabs inherit it */
+  body:not([data-view="player"]) .bar{height:56px;gap:8px}
+  body:not([data-view="player"]) .pb-track{order:1;flex:1 1 auto;min-width:0}
+  body:not([data-view="player"]) .pb-transport{order:2;flex:none}
+  body:not([data-view="player"]) .times,
+  body:not([data-view="player"]) #bPrev,
+  body:not([data-view="player"]) .step,
+  body:not([data-view="player"]) #bLike,
+  body:not([data-view="player"]) #bDislike,
+  body:not([data-view="player"]) #bShuffle,
+  body:not([data-view="player"]) #bRepeat,
+  body:not([data-view="player"]) .pb-right{display:none}
+  body:not([data-view="player"]) .ib.play{width:38px;height:38px}
 
   /* player view: transport fills a row, the rest wraps onto one row below */
   body[data-view="player"] .bar{
     height:auto;flex-wrap:wrap;justify-content:center;gap:14px;
     padding:16px 16px 14px;background:transparent;
   }
+  /* the reference puts shuffle and repeat on the transport row, so the whole
+     bar is one column: times, then a single row of controls */
   body[data-view="player"] .pb-transport{flex:1 0 100%;flex-direction:column-reverse;align-items:center;gap:10px}
-  body[data-view="player"] .times{width:100%;margin:0;justify-content:space-between}
+  body[data-view="player"] .times{width:100%;margin:0;justify-content:space-between;font-size:12px}
   body[data-view="player"] .times .sep{display:none}
   body[data-view="player"] .pb-open{display:none}
-  body[data-view="player"] .pb-track{flex:0 1 auto;gap:20px}
-  body[data-view="player"] .pb-right{flex:0 1 auto;gap:20px;justify-content:center}
+  body[data-view="player"] .pb-track{display:none}
+  body[data-view="player"] .pb-right{flex:0 0 100%;order:3;gap:26px;justify-content:center}
   body[data-view="player"] .vol{display:none}
-  body[data-view="player"] .ctrls{gap:10px}
-  body[data-view="player"] .ib{width:46px;height:46px}
-  body[data-view="player"] .ib svg{width:26px;height:26px}
-  body[data-view="player"] .ib.play{width:62px;height:62px;background:var(--text);color:#030303}
+  /* five across, as in the app: shuffle, prev, play, next, repeat.
+     keeping the ten second steps too would overflow a phone */
+  body[data-view="player"] .step{display:none}
+  body[data-view="player"] .pb-right{display:none}
+  body[data-view="player"] .ctrls{gap:16px}
+  body[data-view="player"] .ib{width:48px;height:48px}
+  body[data-view="player"] .ib svg{width:28px;height:28px}
+  body[data-view="player"] .ib.play{width:66px;height:66px;background:var(--text);color:#030303}
   body[data-view="player"] .ib.play:hover{background:#e6e6e6}
-  body[data-view="player"] .ib.play svg{width:32px;height:32px}
-  body[data-view="player"] .now{overflow:hidden;justify-content:center}
-  body[data-view="player"] .now-meta{padding:14px 2px 0}
+  body[data-view="player"] .ib.play svg{width:34px;height:34px}
+  body[data-view="player"] .now{overflow-y:auto;justify-content:flex-start}
+  /* the app left-aligns the track text on a phone and shows the action pills */
+  body[data-view="player"] .now-meta{text-align:left;padding:18px 2px 4px}
+  body[data-view="player"] .chips{justify-content:flex-start}
+  body[data-view="player"] .actions{display:flex}
+  body[data-view="player"] .art{max-width:100%}
   .track .knob{opacity:1}
 }
 @media(min-width:720px){
@@ -326,6 +386,11 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
         <div class="now-artist" id="artist">Add your player under Connections</div>
         <div class="now-album" id="album"></div>
         <div class="chips" id="chips"></div>
+        <!-- like, dislike and lyrics move in here on a phone, as in the app -->
+        <div class="actions" id="actions">
+          <button class="chip-btn" id="chipLyrics">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v2H4zm0 4h11v2H4zm0 4h16v2H4zm0 4h9v2H4z"/></svg>Lyrics</button>
+        </div>
       </div>
     </section>
 
@@ -333,6 +398,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
     <section class="side" id="sidePane">
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tabQueue" aria-selected="true" aria-controls="paneQueue">Up next</button>
+        <button class="tab" role="tab" id="tabLyrics" aria-selected="false" aria-controls="paneLyrics">Lyrics</button>
         <button class="tab" role="tab" id="tabSearch" aria-selected="false" aria-controls="paneSearch">Search</button>
       </div>
 
@@ -343,6 +409,10 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
           <span class="count" id="queueCount"></span>
         </div>
         <div id="queueList"><div class="empty"><strong>No player connected</strong>Add your YouTube Music player under Connections to see the queue.</div></div>
+      </div>
+
+      <div class="pane lyr-pane" id="paneLyrics" role="tabpanel" hidden>
+        <div id="lyricsBody"><div class="empty"><strong>Lyrics</strong>Play a track to look up its lyrics.</div></div>
       </div>
 
       <div class="pane" id="paneSearch" role="tabpanel" hidden>
@@ -422,6 +492,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
       <svg viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h5V3z"/></svg>Player</button>
     <button role="tab" id="navQueue" aria-selected="false">
       <svg viewBox="0 0 24 24"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-9v7.2a3 3 0 1 0 2 2.8V9h3V7z"/></svg>Up next</button>
+    <button role="tab" id="navLyrics" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4zm0 4h11v2H4zm0 4h16v2H4zm0 4h9v2H4z"/></svg>Lyrics</button>
     <button role="tab" id="navSearch" aria-selected="false">
       <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 0 3.5 10.9l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/></svg>Search</button>
   </nav>
@@ -590,22 +662,25 @@ function applyTheme(pal) {
   if (meta) meta.setAttribute('content', `hsl(${h} ${muted}% 14%)`);
 }
 
-function themeFromArt(url) {
+/* Sampled through fetch and a blob rather than a crossOrigin <img>. An image
+   element shares the cache with the visible artwork, and once that has stored a
+   non-CORS response the canvas read fails; a blob is same-origin so it cannot
+   taint. A cover that will not sample simply keeps the default accent, and the
+   visible artwork is loaded normally so it never depends on any of this. */
+async function themeFromArt(url) {
   if (!url) return applyTheme(null);
   if (themeCache.has(url)) return applyTheme(themeCache.get(url));
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    const pal = paletteFrom(img);
-    themeCache.set(url, pal);
-    applyTheme(pal);
-  };
-  // a cover that will not sample just keeps the default red; the visible artwork is
-  // loaded separately without CORS so it can never be held back by this
-  img.onerror = () => { themeCache.set(url, null); applyTheme(null); };
-  // distinct cache key from the visible <img>, so this entry is always fetched with CORS
-  // and a previously cached opaque response cannot taint the canvas
-  img.src = url + (url.includes('?') ? '&' : '?') + 'ytmr=1';
+  let pal = null;
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (res.ok) {
+      const bmp = await createImageBitmap(await res.blob());
+      pal = paletteFrom(bmp);
+      if (bmp.close) bmp.close();
+    }
+  } catch { pal = null; }
+  themeCache.set(url, pal);
+  applyTheme(pal);
 }
 
 /* ---------------- state ---------------- */
@@ -738,7 +813,11 @@ async function pollSong() {
     state.paused = !!s.isPaused;
     state.elapsed = s.elapsedSeconds || 0;
     state.at = performance.now();
-    if (changed) { renderSong(); if (tab === 'queue') loadQueue(true); }
+    if (changed) {
+      renderSong();
+      if (tab === 'queue') loadQueue(true);
+      if (tab === 'lyrics') loadLyrics();
+    }
     renderProgress(); renderTransport();
   } catch (e) { handleErr(e); }
 }
@@ -796,6 +875,7 @@ function openSocket() {
           lastVideoId = m.song.videoId;
           renderSong();
           if (tab === 'queue') loadQueue(true);
+          if (tab === 'lyrics') loadLyrics();
         } else if (m.song.imageSrc && !document.getElementById('art').src.startsWith(m.song.imageSrc)) {
           renderSong();
         }
@@ -892,6 +972,221 @@ function queueRow(t, i) {
 
   row.onclick = () => act(() => api.patch('/api/v1/queue', { index: i })).then(() => after(500, () => loadQueue(true)));
   return row;
+}
+
+/* ---------------- lyrics ----------------
+   LRCLIB first because it is the only free source serving timed LRC;
+   lyrics.ovh is a plain-text backstop. Both are HTTPS and CORS-open, which
+   is what a page with no backend of its own needs. */
+const lyricsCache = new Map();
+const MAX_DRIFT = 10;   // seconds of length difference we still trust for sync
+
+const primaryArtist = (a) =>
+  (a || '').split(/,|&|\bfeat\.?\b|\bft\.?\b|\bwith\b/i)[0].trim();
+
+function parseLRC(text) {
+  const stamp = /\[(\d+):(\d{1,2}(?:[.:]\d{1,3})?)\]/g;
+  const out = [];
+  for (const raw of String(text).split('\n')) {
+    stamp.lastIndex = 0;
+    const times = [];
+    let m, end = 0;
+    while ((m = stamp.exec(raw))) {
+      times.push(+m[1] * 60 + parseFloat(m[2].replace(':', '.')));
+      end = stamp.lastIndex;
+    }
+    if (!times.length) continue;            // also skips [ar:] [ti:] metadata
+    const body = raw.slice(end).trim();
+    for (const t of times) out.push({ t, text: body });
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+/* lengths vary a lot between uploads of one title, so the closest wins;
+   a synced hit that is too far off would drift audibly */
+function pickBest(list, song) {
+  const want = song.songDuration || 0;
+  const artist = primaryArtist(song.artist).toLowerCase();
+  let best = null, bestScore = -Infinity;
+  for (const c of list) {
+    if (c.instrumental) continue;
+    if (!c.syncedLyrics && !c.plainLyrics) continue;
+    const drift = (want && c.duration) ? Math.abs(c.duration - want) : 99;
+    let score = -drift;
+    if (c.syncedLyrics) score += (drift <= MAX_DRIFT) ? 1000 : 200;
+    if (artist && String(c.artistName || '').toLowerCase().includes(artist)) score += 25;
+    if (score > bestScore) { bestScore = score; best = c; }
+  }
+  if (!best) return null;
+  const drift = (want && best.duration) ? Math.abs(best.duration - want) : 99;
+  /* synced always wins when it exists; a length mismatch only earns a warning,
+     because timed lyrics slightly out are still more useful than a flat block */
+  const isSynced = !!best.syncedLyrics;
+  return {
+    synced: isSynced,
+    lines: isSynced ? parseLRC(best.syncedLyrics) : null,
+    plain: best.plainLyrics || '',
+    source: 'LRCLIB',
+    note: (isSynced && drift > MAX_DRIFT) ? `timing may be off, matched a ${mmss(best.duration)} version` : ''
+  };
+}
+
+/* 429 means the provider is throttling us, which is temporary and must not be
+   remembered as "this track has no lyrics" */
+let lyricsThrottled = false;
+async function getJSON(url) {
+  const r = await fetch(url, { mode: 'cors' });
+  if (r.status === 429) { lyricsThrottled = true; return null; }
+  return r.ok ? r.json() : null;
+}
+
+async function fetchLyrics(song) {
+  const title = song.title || '';
+  const artist = primaryArtist(song.artist);
+  const dur = Math.round(song.songDuration || 0);
+
+  /* Candidates are pooled before choosing. Returning the first hit would settle
+     for a plain entry while a synced one sits in the next response — the exact
+     lookup often matches a plain upload of the same length. */
+  const pool = [];
+
+  try {
+    const q = new URLSearchParams({ artist_name: artist, track_name: title });
+    if (song.album) q.set('album_name', song.album);
+    if (dur) q.set('duration', String(dur));
+    const j = await getJSON('https://lrclib.net/api/get?' + q);
+    if (j) {
+      // an exact hit that is already synced is as good as it gets
+      if (j.syncedLyrics && dur && Math.abs((j.duration || 0) - dur) <= MAX_DRIFT) {
+        return pickBest([j], song);
+      }
+      pool.push(j);
+    }
+  } catch {}
+
+  for (const q of [
+    new URLSearchParams({ track_name: title, artist_name: artist }),
+    new URLSearchParams({ q: title })
+  ]) {
+    try {
+      const list = await getJSON('https://lrclib.net/api/search?' + q);
+      if (Array.isArray(list)) pool.push(...list);
+    } catch {}
+    if (pool.some(c => c.syncedLyrics)) break;   // enough to choose from
+  }
+
+  if (pool.length) {
+    const hit = pickBest(pool, song);
+    if (hit && (hit.synced || hit.plain)) return hit;
+  }
+
+  // 4. plain-text backstop
+  try {
+    const j = await getJSON(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
+    if (j && j.lyrics && j.lyrics.trim()) {
+      return { synced: false, lines: null, plain: j.lyrics.trim(), source: 'lyrics.ovh', note: '' };
+    }
+  } catch {}
+
+  return null;
+}
+
+let lyricLines = null;      // [{t,text}] when synced
+let lyricNodes = [];
+let lyricIdx = -1;
+let lyricFor = null;        // videoId the rendered lyrics belong to
+let userScrolledAt = 0;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function lyricsMessage(strong, rest) {
+  const e = el('div', 'empty');
+  e.appendChild(el('strong', null, strong));
+  e.appendChild(document.createTextNode(rest));
+  $('lyricsBody').replaceChildren(e);
+}
+
+async function loadLyrics(force) {
+  const s = state.song;
+  lyricLines = null; lyricNodes = []; lyricIdx = -1;
+  if (!s || !s.videoId) { lyricFor = null; return lyricsMessage('Lyrics', 'Play a track to look up its lyrics.'); }
+  lyricFor = s.videoId;
+
+  let res = lyricsCache.get(s.videoId);
+  if (res === undefined || force) {
+    lyricsMessage('Looking for lyrics', `${s.title || ''} — ${primaryArtist(s.artist) || ''}`);
+    lyricsThrottled = false;
+    try { res = await fetchLyrics(s); } catch { res = null; }
+    if (lyricFor !== s.videoId) return;          // the track moved on while we waited
+    if (!res && lyricsThrottled) {
+      lyricFor = null;                           // let reopening the tab try again
+      return lyricsMessage('Lyrics service is busy', 'LRCLIB is rate limiting requests. Open this tab again in a moment.');
+    }
+    lyricsCache.set(s.videoId, res);
+  }
+  if (lyricFor !== s.videoId) return;
+  if (!res) return lyricsMessage('No lyrics found', 'Nothing matched this track on LRCLIB or lyrics.ovh.');
+  renderLyrics(res);
+}
+
+function renderLyrics(res) {
+  const head = el('div', 'lyr-head');
+  head.appendChild(Object.assign(el('span', 'lyr-badge'), { textContent: res.synced ? 'Synced' : 'Plain' }));
+  head.appendChild(el('span', null, res.source));
+  if (res.note) head.appendChild(el('span', null, '· ' + res.note));
+  const wrap = el('div', 'lyrics ' + (res.synced ? 'synced' : 'plain'));
+
+  if (res.synced) {
+    lyricLines = res.lines;
+    lyricNodes = res.lines.map((ln) => {
+      const b = el('button', 'lyric' + (ln.text ? '' : ' blank'), ln.text || '♪');
+      b.type = 'button';
+      b.onclick = () => {
+        state.elapsed = ln.t; state.at = performance.now(); renderProgress();
+        act(() => api.post('/api/v1/seek-to', { seconds: Math.round(ln.t) }));
+      };
+      wrap.appendChild(b);
+      return b;
+    });
+  } else {
+    lyricLines = null; lyricNodes = [];
+    for (const line of res.plain.split('\n')) {
+      wrap.appendChild(el('div', 'lyric' + (line.trim() ? '' : ' blank'), line.trim() || ' '));
+    }
+  }
+  $('lyricsBody').replaceChildren(head, wrap);
+  lyricIdx = -1;
+  $('paneLyrics').scrollTop = 0;
+}
+
+function syncLyrics() {
+  if (!lyricLines || !lyricLines.length) return;
+  const now = currentElapsed();
+  let i = lyricIdx;
+  if (i < 0 || now < lyricLines[i].t) i = -1;            // seeked backwards
+  while (i + 1 < lyricLines.length && lyricLines[i + 1].t <= now) i++;
+  if (i === lyricIdx) return;
+  if (lyricIdx >= 0 && lyricNodes[lyricIdx]) {
+    lyricNodes[lyricIdx].classList.remove('on');
+    lyricNodes[lyricIdx].classList.add('done');
+  }
+  lyricIdx = i;
+  const node = lyricNodes[i];
+  if (!node) return;
+  node.classList.remove('done');
+  node.classList.add('on');
+  for (let k = i + 1; k < lyricNodes.length; k++) lyricNodes[k].classList.remove('done');
+  if (Date.now() - userScrolledAt > 5000) centreLyric(node);
+}
+
+function centreLyric(node) {
+  const pane = $('paneLyrics');
+  const top = node.offsetTop - pane.clientHeight / 2 + node.offsetHeight / 2;
+  pane.scrollTo({ top: Math.max(0, top), behavior: reduceMotion ? 'auto' : 'smooth' });
+}
+
+/* wheel and touch mean the reader took over; our own scrollTo must not count */
+for (const ev of ['wheel', 'touchstart']) {
+  $('paneLyrics').addEventListener(ev, () => { userScrolledAt = Date.now(); }, { passive: true });
 }
 
 /* ---------------- search ---------------- */
@@ -1063,29 +1358,57 @@ track.addEventListener('keydown', (e) => {
 let tab = 'queue';
 let view = 'player';
 
+const TABS = ['queue', 'lyrics', 'search'];
+const VIEWS = ['player', 'queue', 'lyrics', 'search'];
+const cap = (s) => s[0].toUpperCase() + s.slice(1);
+
 function setTab(name) {
   tab = name;
-  $('tabQueue').setAttribute('aria-selected', String(name === 'queue'));
-  $('tabSearch').setAttribute('aria-selected', String(name === 'search'));
-  $('paneQueue').hidden = name !== 'queue';
-  $('paneSearch').hidden = name !== 'search';
+  for (const t of TABS) {
+    $('tab' + cap(t)).setAttribute('aria-selected', String(t === name));
+    $('pane' + cap(t)).hidden = t !== name;
+  }
   if (name === 'queue') loadQueue();
+  if (name === 'lyrics' && lyricFor !== (state.song && state.song.videoId)) loadLyrics();
 }
 
 function setView(name) {
   view = name;
   document.body.dataset.view = name;
-  $('navPlayer').setAttribute('aria-selected', String(name === 'player'));
-  $('navQueue').setAttribute('aria-selected', String(name === 'queue'));
-  $('navSearch').setAttribute('aria-selected', String(name === 'search'));
-  if (name === 'queue' || name === 'search') setTab(name);
+  for (const v of VIEWS) $('nav' + cap(v)).setAttribute('aria-selected', String(v === name));
+  if (name !== 'player') setTab(name);
 }
 
-$('tabQueue').onclick = () => setTab('queue');
-$('tabSearch').onclick = () => setTab('search');
-$('navPlayer').onclick = () => setView('player');
-$('navQueue').onclick = () => setView('queue');
-$('navSearch').onclick = () => setView('search');
+for (const t of TABS) $('tab' + cap(t)).onclick = () => setTab(t);
+for (const v of VIEWS) $('nav' + cap(v)).onclick = () => setView(v);
+$('chipLyrics').onclick = () => setView('lyrics');
+
+/* The app groups these differently by size: on a phone shuffle and repeat sit
+   beside the transport and rating sits in the pills under the title, while at
+   desktop width both live out on the right. CSS cannot move a node between
+   parents, so one set of buttons is relocated instead of duplicated. */
+const phone = matchMedia('(max-width:719px)');
+function placeControls() {
+  const ctrls = document.querySelector('.ctrls');
+  const right = document.querySelector('.pb-right');
+  const acts = $('actions');
+  if (phone.matches) {
+    ctrls.insertBefore($('bShuffle'), $('bPrev'));
+    ctrls.appendChild($('bRepeat'));
+    acts.insertBefore($('bLike'), $('chipLyrics'));
+    acts.insertBefore($('bDislike'), $('chipLyrics'));
+    acts.appendChild($('bFull'));      // no room for it on the transport row
+  } else {
+    right.appendChild($('bRepeat'));
+    right.appendChild($('bShuffle'));
+    right.appendChild($('bFull'));
+    const track = document.querySelector('.pb-track');
+    track.appendChild($('bLike'));
+    track.appendChild($('bDislike'));
+  }
+}
+phone.addEventListener('change', placeControls);
+placeControls();
 $('miniOpen').onclick = () => setView('player');
 
 $('bQueueRefresh').onclick = () => loadQueue();
@@ -1202,6 +1525,7 @@ function connect() {
 
 function frame() {
   if (!scrubbing && state.duration && !state.paused) renderProgress();
+  if (!$('paneLyrics').hidden) syncLyrics();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

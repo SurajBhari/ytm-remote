@@ -38,6 +38,12 @@ Fullscreen API (iOS Safari).
 
 **Search** — search the YouTube Music catalogue and drop any result into the queue. You can also paste a raw video ID.
 
+**Lyrics** — time-synced where they exist, scrolling themselves and dimming what has passed.
+Tap any line to jump to that moment. Sources are tried in order and synced always wins over
+plain: [LRCLIB](https://lrclib.net) (timed LRC), then [lyrics.ovh](https://lyrics.ovh) as a
+plain-text backstop. Candidates are ranked by track length, because the same title is often
+uploaded at several different durations and the wrong one drifts audibly.
+
 ### Keyboard
 
 | Key | Action | Key | Action |
