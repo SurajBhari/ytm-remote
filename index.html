@@ -1684,9 +1684,6 @@ function armMediaSession() {
     removeEventListener('keydown', armMediaSession);
   }).catch(() => {});          // the next gesture tries again
 }
-/* the browser may stop the loop when the tab is backgrounded; bring it back so
-   the notification does not vanish mid-track */
-hold.addEventListener('pause', () => { if (mediaArmed) hold.play().catch(() => {}); });
 addEventListener('pointerdown', armMediaSession);
 addEventListener('keydown', armMediaSession);
 
@@ -1708,6 +1705,12 @@ function updateMediaSession() {
     } catch {}
   }
   ms.playbackState = state.paused ? 'paused' : 'playing';
+  /* The silent element must follow the desktop player. Holding it playing while
+     the player is paused leaves the browser believing this page is still
+     playing, so the notification keeps offering pause and never delivers a play
+     action, and the track can never be resumed from there. */
+  if (state.paused && !hold.paused) hold.pause();
+  else if (!state.paused && hold.paused) hold.play().catch(() => {});
   if (state.duration) {
     try {
       ms.setPositionState({
