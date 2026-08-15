@@ -148,7 +148,23 @@ img{display:block}
   display:flex;align-items:center;gap:14px;padding:0 16px;height:var(--bar-h);
   padding-bottom:env(safe-area-inset-bottom);
 }
-.bar-line{position:absolute;top:0;left:0;height:2px;background:var(--accent);width:0;transition:width .25s linear}
+/* seek control pinned to the bar's top edge; 12px tall so it is grabbable on
+   touch while only the top 3px are painted */
+.track{
+  position:absolute;top:0;left:0;right:0;height:12px;z-index:2;
+  cursor:pointer;touch-action:none;
+}
+.track .rail{position:absolute;top:0;left:0;right:0;height:3px;background:rgba(255,255,255,.24)}
+.track .fill{position:absolute;top:0;left:0;height:3px;background:var(--accent);width:0}
+.track .knob{
+  position:absolute;top:1.5px;width:12px;height:12px;border-radius:var(--r-round);
+  background:var(--accent);transform:translate(-50%,-50%);opacity:0;transition:opacity .12s;
+}
+.track:hover .rail,.track:focus-visible .rail,.track.live .rail,
+.track:hover .fill,.track:focus-visible .fill,.track.live .fill{height:5px}
+.track:hover .knob,.track:focus-visible .knob,.track.live .knob{opacity:1}
+.track[aria-disabled="true"]{cursor:default}
+.track[aria-disabled="true"] .knob{opacity:0}
 .pb-left{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 0;text-align:left}
 .pb-left img{width:40px;height:40px;border-radius:var(--r-sm);object-fit:cover;flex:none;background:#0f0f0f}
 .pb-left .txt{min-width:0;display:flex;flex-direction:column}
@@ -167,18 +183,9 @@ img{display:block}
 .ib.on{color:var(--accent)}
 .ib[disabled]{opacity:.35;cursor:default}
 
-.scrub{display:flex;align-items:center;gap:9px;width:100%;max-width:620px}
-.scrub .time{font-size:11px;color:var(--text-3);flex:none;min-width:34px;font-variant-numeric:tabular-nums}
-.scrub .time.end{text-align:right}
-.track{position:relative;flex:1;height:16px;display:flex;align-items:center;cursor:pointer;touch-action:none}
-.track .rail{position:absolute;left:0;right:0;height:3px;background:rgba(255,255,255,.3);border-radius:2px}
-.track .fill{position:absolute;left:0;height:3px;background:var(--accent);border-radius:2px;width:0}
-.track .knob{
-  position:absolute;width:12px;height:12px;border-radius:var(--r-round);background:var(--accent);
-  transform:translateX(-6px);opacity:0;transition:opacity .12s;
-}
-.track:hover .knob,.track:focus-visible .knob,.track.live .knob{opacity:1}
-.track[aria-disabled="true"]{opacity:.4;cursor:default}
+.scrub{display:flex;align-items:center;justify-content:center;gap:5px}
+.scrub .time{font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.scrub .sep{opacity:.5}
 
 .pb-right{display:flex;align-items:center;gap:2px;flex:1 1 0;justify-content:flex-end}
 .vol{display:flex;align-items:center;gap:6px}
@@ -214,6 +221,7 @@ img{display:block}
   /* mini player: collapsed strip that opens the player view */
   body[data-view="queue"] .bar,body[data-view="search"] .bar{height:56px}
   body[data-view="queue"] .pb-mid,body[data-view="search"] .pb-mid{flex:none;flex-direction:row}
+  /* mini bar keeps the top-edge seek line but drops the readouts */
   body[data-view="queue"] .scrub,body[data-view="search"] .scrub{display:none}
   body[data-view="queue"] .pb-right,body[data-view="search"] .pb-right{display:none}
   body[data-view="queue"] .ctrls .opt,body[data-view="search"] .ctrls .opt{display:none}
@@ -221,9 +229,8 @@ img{display:block}
 
   /* player view: the bar becomes the full transport under the artwork */
   body[data-view="player"] .bar{
-    height:auto;flex-direction:column;gap:10px;padding:12px 16px 14px;background:transparent;
+    height:auto;flex-direction:column;gap:10px;padding:16px 16px 14px;background:transparent;
   }
-  body[data-view="player"] .bar-line{display:none}
   body[data-view="player"] .pb-left{display:none}
   body[data-view="player"] .pb-mid{width:100%;flex:none;gap:10px}
   body[data-view="player"] .ctrls{gap:10px}
@@ -237,11 +244,7 @@ img{display:block}
   body[data-view="player"] .now-meta{padding:14px 2px 0}
   .track .knob{opacity:1}
 }
-@media(min-width:720px){
-  .nav{display:none}
-  /* the inline scrubber already shows position here; the edge line is for the mini bar */
-  .bar-line{display:none}
-}
+@media(min-width:720px){.nav{display:none}}
 
 /* ============ dialog ============ */
 dialog{
@@ -336,7 +339,11 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
 
   <!-- player bar: one control set, re-laid out per breakpoint -->
   <footer class="bar">
-    <div class="bar-line" id="barLine"></div>
+    <!-- the seek control is the bar's top edge, full width at every size -->
+    <div class="track" id="track" role="slider" tabindex="0" aria-label="Seek position"
+         aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-disabled="true">
+      <div class="rail"></div><div class="fill" id="fill"></div><div class="knob" id="knob"></div>
+    </div>
 
     <button class="pb-left" id="miniOpen" aria-label="Open the player">
       <img id="barArt" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
@@ -353,7 +360,7 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
         <button class="ib small opt" id="bBack" aria-label="Go back 10 seconds" title="Back 10s (←)">
           <svg viewBox="0 0 24 24"><path d="M11 6V2.5L6 7l5 4.5V8a5 5 0 1 1-5 5H4a7 7 0 1 0 7-7z"/></svg></button>
         <button class="ib play" id="bPlay" aria-label="Play" title="Play or pause (Space)">
-          <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+          <svg viewBox="0 0 24 24"><path id="playIcon" d="M8 5v14l11-7z"/></svg></button>
         <button class="ib small opt" id="bFwd" aria-label="Go forward 10 seconds" title="Forward 10s (→)">
           <svg viewBox="0 0 24 24"><path d="M13 6V2.5L18 7l-5 4.5V8a5 5 0 1 0 5 5h2a7 7 0 1 1-7-7z"/></svg></button>
         <button class="ib small" id="bNext" aria-label="Next track" title="Next (N)">
@@ -362,11 +369,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
 
       <div class="scrub">
         <span class="time" id="elapsed">0:00</span>
-        <div class="track" id="track" role="slider" tabindex="0" aria-label="Seek position"
-             aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-disabled="true">
-          <div class="rail"></div><div class="fill" id="fill"></div><div class="knob" id="knob"></div>
-        </div>
-        <span class="time end" id="duration">0:00</span>
+        <span class="time sep" aria-hidden="true">/</span>
+        <span class="time" id="duration">0:00</span>
       </div>
     </div>
 
@@ -378,12 +382,12 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
       <button class="ib small" id="bShuffle" aria-label="Shuffle" title="Shuffle (S)">
         <svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4V8h-2.2l-2.3 3-1.3-1.7L13.6 6H17zM3 6h4.2l6.5 9H17v-3l4 4-4 4v-3h-4.3L6.2 8H3zM3 16h4.4l1.7-2.3 1.3 1.7L8.2 18H3z"/></svg></button>
       <button class="ib small" id="bRepeat" aria-label="Repeat off" title="Repeat (R)">
-        <svg viewBox="0 0 24 24" id="repeatIcon"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg></button>
+        <svg viewBox="0 0 24 24"><path id="repeatIcon" d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg></button>
       <button class="ib small" id="bFull" aria-label="Fullscreen on the player" title="Fullscreen (F)">
         <svg viewBox="0 0 24 24"><path d="M4 9V4h5v2H6v3zm11-5h5v5h-2V6h-3zM4 15h2v3h3v2H4zm14 3v-3h2v5h-5v-2z"/></svg></button>
       <span class="vol">
         <button class="ib small" id="bMute" aria-label="Mute" title="Mute (M)">
-          <svg viewBox="0 0 24 24" id="volIcon"><path d="M4 9h3l4-4v14l-4-4H4zm11.5 3a3.5 3.5 0 0 0-2-3.2v6.4a3.5 3.5 0 0 0 2-3.2z"/></svg></button>
+          <svg viewBox="0 0 24 24"><path id="volIcon" d="M4 9h3l4-4v14l-4-4H4zm11.5 3a3.5 3.5 0 0 0-2-3.2v6.4a3.5 3.5 0 0 0 2-3.2z"/></svg></button>
         <input type="range" id="vol" min="0" max="100" step="1" value="0" aria-label="Volume">
       </span>
     </div>
@@ -658,7 +662,6 @@ function renderProgress() {
   const pct = d ? (e / d) * 100 : 0;
   $('fill').style.width = pct + '%';
   $('knob').style.left = pct + '%';
-  $('barLine').style.width = pct + '%';
   const t = $('track');
   t.setAttribute('aria-valuemax', Math.floor(d));
   t.setAttribute('aria-valuenow', Math.floor(e));
