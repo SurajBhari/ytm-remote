@@ -149,23 +149,29 @@ img{display:block}
   overflow-wrap:anywhere;
 }
 
-/* ---- synced: a fixed five-line window, nothing scrolls ---- */
+/* ---- synced: the list slides under a fixed centre line ----
+   translating the whole list keeps the movement continuous; toggling display
+   made lines appear and vanish with nothing in between */
 .lyr-pane.windowed{overflow:hidden;-webkit-mask-image:none;mask-image:none}
 .lyr-pane.windowed #lyricsBody{height:100%;display:flex;flex-direction:column}
+.lyr-viewport{flex:1;min-height:0;position:relative;overflow:hidden}
 .lyrics.synced{
-  flex:1;display:flex;flex-direction:column;justify-content:center;
-  gap:clamp(6px,1.4vh,16px);
+  position:absolute;left:0;right:0;top:50%;
+  transition:transform .5s cubic-bezier(.22,.61,.36,1);
+  will-change:transform;
 }
-.lyrics.synced .lyric{display:none;cursor:pointer}
-.lyrics.synced .lyric.vis{display:block}
 .lyrics.synced .lyric{
   font-size:clamp(23px,3.4vw,38px);line-height:1.24;font-weight:700;
-  letter-spacing:-.01em;color:rgba(255,255,255,.3);
+  letter-spacing:-.01em;color:rgba(255,255,255,.34);
+  margin:clamp(4px,1.1vh,12px) 0;cursor:pointer;
+  opacity:0;transform:scale(.96);transform-origin:left center;pointer-events:none;
+  transition:opacity .4s ease,transform .4s cubic-bezier(.22,.61,.36,1),color .4s ease;
 }
-.lyrics.synced .lyric.on{color:var(--text)}
-.lyrics.synced .lyric:hover{color:rgba(255,255,255,.62)}
-.lyrics.synced .lyric.on:hover{color:var(--text)}
-.lyrics.synced .lyric.blank{font-size:26px;color:rgba(255,255,255,.25)}
+/* only the five around the centre are lit, so the rest fade out of the way */
+.lyrics.synced .lyric.near{opacity:.42;pointer-events:auto}
+.lyrics.synced .lyric.on{opacity:1;color:var(--text);transform:scale(1);pointer-events:auto}
+.lyrics.synced .lyric.near:hover{color:rgba(255,255,255,.75)}
+.lyrics.synced .lyric.blank{font-size:26px}
 .lyrics.synced .lyric.blank.on{color:var(--accent)}
 
 /* plain lyrics have no timing, so nothing is clickable and the list scrolls */
@@ -785,6 +791,26 @@ function renderSong() {
   }
 }
 
+/* The player reports whole seconds, so a poll usually lands slightly behind the
+   clock we interpolate between polls. Snapping to it every second dragged the
+   position backwards and made the lyric highlight step back a line and forward
+   again. Only a real jump is worth correcting; anything under a second and a
+   half is quantisation and the smooth local clock is kept. */
+/* Fold the time interpolated so far into the stored position before moving the
+   origin. Resetting `at` on its own throws that time away, which made the clock
+   lose ground on every socket push and the lyrics fall progressively behind. */
+function bankTime() {
+  state.elapsed = currentElapsed();
+  state.at = performance.now();
+}
+
+function applyPosition(reported, force) {
+  if (force || !state.duration || Math.abs(reported - currentElapsed()) > 1.5) {
+    state.elapsed = reported;
+    state.at = performance.now();
+  }
+}
+
 const currentElapsed = () => {
   if (!state.duration) return 0;
   let e = state.elapsed;
@@ -844,8 +870,7 @@ async function pollSong() {
     state.song = s;
     state.duration = s.songDuration || 0;
     state.paused = !!s.isPaused;
-    state.elapsed = s.elapsedSeconds || 0;
-    state.at = performance.now();
+    applyPosition(s.elapsedSeconds || 0, changed);
     if (changed) {
       renderSong();
       if (tab === 'queue') loadQueue(true);
@@ -892,8 +917,8 @@ function openSocket() {
   ws.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.type === 'PLAYER_INFO') {
-      if (typeof m.isPlaying === 'boolean') { state.paused = !m.isPlaying; state.at = performance.now(); }
-      if (typeof m.position === 'number') { state.elapsed = m.position; state.at = performance.now(); }
+      if (typeof m.isPlaying === 'boolean') { bankTime(); state.paused = !m.isPlaying; }
+      if (typeof m.position === 'number') applyPosition(m.position, false);
       if (typeof m.volume === 'number' && !volDragging) { state.volume = Math.round(m.volume); volumeFromSocket = true; }
       if (typeof m.muted === 'boolean') { state.muted = m.muted; volumeFromSocket = true; }
       if (typeof m.shuffle === 'boolean') state.shuffle = m.shuffle;
@@ -1130,6 +1155,7 @@ async function fetchLyrics(song) {
 
 let lyricLines = null;      // [{t,text}] when synced
 let lyricNodes = [];
+let lyricWrap = null;       // the sliding list, positioned by focusLyric
 let lyricIdx = -1;
 let lyricFor = null;        // videoId the rendered lyrics belong to
 
@@ -1142,7 +1168,7 @@ function lyricsMessage(strong, rest) {
 
 async function loadLyrics(force) {
   const s = state.song;
-  lyricLines = null; lyricNodes = []; lyricIdx = -1;
+  lyricLines = null; lyricNodes = []; lyricIdx = -1; lyricWrap = null;
   if (!s || !s.videoId) { lyricFor = null; return lyricsMessage('Lyrics', 'Play a track to look up its lyrics.'); }
   lyricFor = s.videoId;
 
@@ -1188,11 +1214,21 @@ function renderLyrics(res) {
       wrap.appendChild(el('div', 'lyric' + (line.trim() ? '' : ' blank'), line.trim() || ' '));
     }
   }
-  $('lyricsBody').replaceChildren(head, wrap);
-  lyricIdx = -1;
+  lyricWrap = res.synced ? wrap : null;
   $('paneLyrics').classList.toggle('windowed', res.synced);
+  if (res.synced) {
+    const viewport = el('div', 'lyr-viewport');
+    viewport.appendChild(wrap);
+    $('lyricsBody').replaceChildren(head, viewport);
+  } else {
+    $('lyricsBody').replaceChildren(head, wrap);
+  }
+  lyricIdx = -1;
   $('paneLyrics').scrollTop = 0;
-  if (res.synced) showWindow(-1);      // the opening lines before playback reaches them
+  /* offsetTop is only meaningful once the browser has laid the list out, and by
+     then the sync loop may already have advanced, so position to whatever the
+     index is when the frame runs rather than to the top */
+  if (res.synced) requestAnimationFrame(() => focusLyric(lyricIdx));
 }
 
 function syncLyrics() {
@@ -1203,18 +1239,21 @@ function syncLyrics() {
   while (i + 1 < lyricLines.length && lyricLines[i + 1].t <= now) i++;
   if (i === lyricIdx) return;
   lyricIdx = i;
-  showWindow(i);
+  focusLyric(i);
 }
 
-/* only the active line and two either side are in view, so nothing scrolls
-   and the type can be large enough to read from across the room */
-function showWindow(i) {
-  const lo = i - LYRIC_WINDOW, hi = i + LYRIC_WINDOW;
+/* lights the active line plus two either side and slides the list so the
+   active one sits on the centre line */
+function focusLyric(i) {
+  if (!lyricNodes.length || !lyricWrap) return;
   for (let k = 0; k < lyricNodes.length; k++) {
     const n = lyricNodes[k];
-    n.classList.toggle('vis', k >= lo && k <= hi);
     n.classList.toggle('on', k === i);
+    n.classList.toggle('near', k !== i && Math.abs(k - Math.max(0, i)) <= LYRIC_WINDOW);
   }
+  const node = lyricNodes[Math.max(0, i)];
+  if (!node) return;
+  lyricWrap.style.transform = `translateY(${-(node.offsetTop + node.offsetHeight / 2)}px)`;
 }
 
 /* ---------------- search ---------------- */
@@ -1300,7 +1339,7 @@ async function runSearch(q) {
 
 /* ---------------- controls ---------------- */
 $('bPlay').onclick = () => {
-  state.paused = !state.paused; state.at = performance.now(); renderTransport();
+  bankTime(); state.paused = !state.paused; renderTransport();
   act(() => api.post('/api/v1/toggle-play'));
 };
 $('bPrev').onclick = () => act(() => api.post('/api/v1/previous'));
@@ -1397,7 +1436,11 @@ function setTab(name) {
     $('pane' + cap(t)).hidden = t !== name;
   }
   if (name === 'queue') loadQueue();
-  if (name === 'lyrics' && lyricFor !== (state.song && state.song.videoId)) loadLyrics();
+  if (name === 'lyrics') {
+    if (lyricFor !== (state.song && state.song.videoId)) loadLyrics();
+    // a hidden pane has no layout, so the slide has to be recomputed on reveal
+    else requestAnimationFrame(() => focusLyric(lyricIdx));
+  }
 }
 
 function setView(name) {
@@ -1447,6 +1490,9 @@ function fitArt() {
 }
 new ResizeObserver(fitArt).observe(artWrap);
 fitArt();
+
+/* line heights change with the width, so the slide offset has to follow */
+new ResizeObserver(() => { if (lyricWrap) focusLyric(lyricIdx); }).observe($('paneLyrics'));
 $('miniOpen').onclick = () => setView('player');
 
 $('bQueueRefresh').onclick = () => loadQueue();
