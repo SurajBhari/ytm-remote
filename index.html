@@ -78,10 +78,15 @@ img{display:block}
 .content{flex:1;display:flex;gap:24px;padding:0 16px 12px;min-height:0;overflow:hidden}
 
 /* ============ now playing ============ */
-.now{flex:1 1 44%;min-width:0;display:flex;flex-direction:column;justify-content:center;overflow-y:auto;overscroll-behavior:contain}
-.art-wrap{width:100%;display:flex;justify-content:center}
+/* nothing here scrolls; the artwork gives up height instead */
+.now{flex:1 1 44%;min-width:0;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+/* the wrapper takes the leftover height, and --art-size is measured from it so
+   the cover stays square while shrinking; max-height alone would squash it */
+.art-wrap{flex:1 1 auto;min-height:0;width:100%;display:flex;justify-content:center;align-items:center}
+.now-meta,.actions{flex:none}
 .art{
-  width:100%;max-width:min(360px,52vh);aspect-ratio:1;border-radius:var(--r-md);object-fit:cover;
+  width:var(--art-size,100%);aspect-ratio:1;
+  border-radius:var(--r-md);object-fit:cover;
   background:#0f0f0f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%230f0f0f'/%3E%3Cg fill='none' stroke='%23303030' stroke-width='2'%3E%3Ccircle cx='60' cy='60' r='30'/%3E%3C/g%3E%3Cpath d='M52 46v28a7 7 0 1 1-4-6.3V42l24-6v24a7 7 0 1 1-4-6.3V41z' fill='%23404040'/%3E%3C/svg%3E") center/cover no-repeat;
   box-shadow:0 4px 24px rgba(0,0,0,.5);
 }
@@ -131,9 +136,7 @@ img{display:block}
   font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--accent);border:1px solid currentColor;border-radius:var(--r-sm);padding:1px 6px;
 }
-.lyrics{max-width:620px;margin:0 auto}
-/* the trailing space lets the closing lines still reach the centre */
-.lyrics.synced{padding-bottom:46%}
+.lyrics{max-width:680px;margin:0 auto;width:100%}
 .lyric{
   display:block;width:100%;text-align:left;
   font-size:19px;line-height:1.45;font-weight:500;
@@ -142,15 +145,32 @@ img{display:block}
   transition:color .3s ease;
   overflow-wrap:anywhere;
 }
-.lyrics.synced .lyric{cursor:pointer}
-.lyrics.synced .lyric:hover{color:rgba(255,255,255,.72);background:var(--hover)}
-.lyric.done{color:rgba(255,255,255,.28)}
-.lyric.on{color:var(--text)}
-.lyric.blank{padding:4px 10px;color:rgba(255,255,255,.22)}
-.lyric.blank.on{color:var(--accent)}
-/* plain lyrics have no timing, so nothing is clickable and everything stays readable */
-.lyrics.plain .lyric{color:rgba(255,255,255,.82);cursor:default;font-size:17px}
-@media(max-width:719px){.lyric{font-size:20px}}
+
+/* ---- synced: a fixed five-line window, nothing scrolls ---- */
+.lyr-pane.windowed{overflow:hidden;-webkit-mask-image:none;mask-image:none}
+.lyr-pane.windowed #lyricsBody{height:100%;display:flex;flex-direction:column}
+.lyrics.synced{
+  flex:1;display:flex;flex-direction:column;justify-content:center;
+  gap:clamp(6px,1.4vh,16px);
+}
+.lyrics.synced .lyric{display:none;cursor:pointer}
+.lyrics.synced .lyric.vis{display:block}
+.lyrics.synced .lyric{
+  font-size:clamp(23px,3.4vw,38px);line-height:1.24;font-weight:700;
+  letter-spacing:-.01em;color:rgba(255,255,255,.3);
+}
+.lyrics.synced .lyric.on{color:var(--text)}
+.lyrics.synced .lyric:hover{color:rgba(255,255,255,.62)}
+.lyrics.synced .lyric.on:hover{color:var(--text)}
+.lyrics.synced .lyric.blank{font-size:26px;color:rgba(255,255,255,.25)}
+.lyrics.synced .lyric.blank.on{color:var(--accent)}
+
+/* plain lyrics have no timing, so nothing is clickable and the list scrolls */
+.lyrics.plain .lyric{color:rgba(255,255,255,.82);cursor:default;font-size:18px}
+@media(max-width:719px){
+  .lyrics.synced .lyric{font-size:clamp(25px,6.6vw,34px)}
+  .lyrics.plain .lyric{font-size:19px}
+}
 .pane::-webkit-scrollbar{width:8px}
 .pane::-webkit-scrollbar-thumb{background:#4a4a4a;border-radius:var(--r-sm)}
 .pane-bar{display:flex;gap:8px;align-items:center;padding:2px 0 10px;flex-wrap:wrap}
@@ -297,7 +317,9 @@ img{display:block}
   /* the reference puts shuffle and repeat on the transport row, so the whole
      bar is one column: times, then a single row of controls */
   body[data-view="player"] .pb-transport{flex:1 0 100%;flex-direction:column-reverse;align-items:center;gap:10px}
-  body[data-view="player"] .times{width:100%;margin:0;justify-content:space-between;font-size:12px}
+  /* inset the scrubber and its readout from the screen edges */
+  body[data-view="player"] .track{left:16px;right:16px}
+  body[data-view="player"] .times{width:100%;margin:0;padding:0 16px;justify-content:space-between;font-size:12px}
   body[data-view="player"] .times .sep{display:none}
   body[data-view="player"] .pb-open{display:none}
   body[data-view="player"] .pb-track{display:none}
@@ -313,7 +335,7 @@ img{display:block}
   body[data-view="player"] .ib.play{width:66px;height:66px;background:var(--text);color:#030303}
   body[data-view="player"] .ib.play:hover{background:#e6e6e6}
   body[data-view="player"] .ib.play svg{width:34px;height:34px}
-  body[data-view="player"] .now{overflow-y:auto;justify-content:flex-start}
+  body[data-view="player"] .now{overflow:hidden;justify-content:center}
   /* the app left-aligns the track text on a phone and shows the action pills */
   body[data-view="player"] .now-meta{text-align:left;padding:18px 2px 4px}
   body[data-view="player"] .chips{justify-content:flex-start}
@@ -386,11 +408,9 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
         <div class="now-artist" id="artist">Add your player under Connections</div>
         <div class="now-album" id="album"></div>
         <div class="chips" id="chips"></div>
-        <!-- like, dislike and lyrics move in here on a phone, as in the app -->
-        <div class="actions" id="actions">
-          <button class="chip-btn" id="chipLyrics">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v2H4zm0 4h11v2H4zm0 4h16v2H4zm0 4h9v2H4z"/></svg>Lyrics</button>
-        </div>
+        <!-- rating and fullscreen move in here on a phone, as in the app;
+             lyrics has its own tab in the bottom bar -->
+        <div class="actions" id="actions"></div>
       </div>
     </section>
 
@@ -980,6 +1000,10 @@ function queueRow(t, i) {
    is what a page with no backend of its own needs. */
 const lyricsCache = new Map();
 const MAX_DRIFT = 10;   // seconds of length difference we still trust for sync
+/* LRC stamps mark where a line starts being sung, but reading it needs a beat
+   of lead time, and the reported position lags the audio slightly too */
+const LYRIC_LEAD = 0.5;
+const LYRIC_WINDOW = 2; // lines kept either side of the active one, so five in view
 
 const primaryArtist = (a) =>
   (a || '').split(/,|&|\bfeat\.?\b|\bft\.?\b|\bwith\b/i)[0].trim();
@@ -1095,8 +1119,6 @@ let lyricLines = null;      // [{t,text}] when synced
 let lyricNodes = [];
 let lyricIdx = -1;
 let lyricFor = null;        // videoId the rendered lyrics belong to
-let userScrolledAt = 0;
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function lyricsMessage(strong, rest) {
   const e = el('div', 'empty');
@@ -1155,38 +1177,31 @@ function renderLyrics(res) {
   }
   $('lyricsBody').replaceChildren(head, wrap);
   lyricIdx = -1;
+  $('paneLyrics').classList.toggle('windowed', res.synced);
   $('paneLyrics').scrollTop = 0;
+  if (res.synced) showWindow(-1);      // the opening lines before playback reaches them
 }
 
 function syncLyrics() {
   if (!lyricLines || !lyricLines.length) return;
-  const now = currentElapsed();
+  const now = currentElapsed() + LYRIC_LEAD;
   let i = lyricIdx;
   if (i < 0 || now < lyricLines[i].t) i = -1;            // seeked backwards
   while (i + 1 < lyricLines.length && lyricLines[i + 1].t <= now) i++;
   if (i === lyricIdx) return;
-  if (lyricIdx >= 0 && lyricNodes[lyricIdx]) {
-    lyricNodes[lyricIdx].classList.remove('on');
-    lyricNodes[lyricIdx].classList.add('done');
-  }
   lyricIdx = i;
-  const node = lyricNodes[i];
-  if (!node) return;
-  node.classList.remove('done');
-  node.classList.add('on');
-  for (let k = i + 1; k < lyricNodes.length; k++) lyricNodes[k].classList.remove('done');
-  if (Date.now() - userScrolledAt > 5000) centreLyric(node);
+  showWindow(i);
 }
 
-function centreLyric(node) {
-  const pane = $('paneLyrics');
-  const top = node.offsetTop - pane.clientHeight / 2 + node.offsetHeight / 2;
-  pane.scrollTo({ top: Math.max(0, top), behavior: reduceMotion ? 'auto' : 'smooth' });
-}
-
-/* wheel and touch mean the reader took over; our own scrollTo must not count */
-for (const ev of ['wheel', 'touchstart']) {
-  $('paneLyrics').addEventListener(ev, () => { userScrolledAt = Date.now(); }, { passive: true });
+/* only the active line and two either side are in view, so nothing scrolls
+   and the type can be large enough to read from across the room */
+function showWindow(i) {
+  const lo = i - LYRIC_WINDOW, hi = i + LYRIC_WINDOW;
+  for (let k = 0; k < lyricNodes.length; k++) {
+    const n = lyricNodes[k];
+    n.classList.toggle('vis', k >= lo && k <= hi);
+    n.classList.toggle('on', k === i);
+  }
 }
 
 /* ---------------- search ---------------- */
@@ -1381,8 +1396,6 @@ function setView(name) {
 
 for (const t of TABS) $('tab' + cap(t)).onclick = () => setTab(t);
 for (const v of VIEWS) $('nav' + cap(v)).onclick = () => setView(v);
-$('chipLyrics').onclick = () => setView('lyrics');
-
 /* The app groups these differently by size: on a phone shuffle and repeat sit
    beside the transport and rating sits in the pills under the title, while at
    desktop width both live out on the right. CSS cannot move a node between
@@ -1395,9 +1408,7 @@ function placeControls() {
   if (phone.matches) {
     ctrls.insertBefore($('bShuffle'), $('bPrev'));
     ctrls.appendChild($('bRepeat'));
-    acts.insertBefore($('bLike'), $('chipLyrics'));
-    acts.insertBefore($('bDislike'), $('chipLyrics'));
-    acts.appendChild($('bFull'));      // no room for it on the transport row
+    acts.append($('bLike'), $('bDislike'), $('bFull'));   // no room on the transport row
   } else {
     right.appendChild($('bRepeat'));
     right.appendChild($('bShuffle'));
@@ -1409,6 +1420,20 @@ function placeControls() {
 }
 phone.addEventListener('change', placeControls);
 placeControls();
+
+/* The artwork is square and must fit the space left over after the text and
+   controls, so its side is the smaller of the width and height available.
+   CSS alone cannot do this: max-height clamps the height while width:100%
+   holds the width, which flattens the square instead of shrinking it. */
+const artWrap = document.querySelector('.art-wrap');
+function fitArt() {
+  const w = artWrap.clientWidth, h = artWrap.clientHeight;
+  if (!w || !h) return;
+  const cap = phone.matches ? w : Math.min(w, 360);
+  document.documentElement.style.setProperty('--art-size', Math.max(72, Math.min(w, h, cap)) + 'px');
+}
+new ResizeObserver(fitArt).observe(artWrap);
+fitArt();
 $('miniOpen').onclick = () => setView('player');
 
 $('bQueueRefresh').onclick = () => loadQueue();
