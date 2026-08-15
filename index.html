@@ -1635,7 +1635,9 @@ $('bAddConn').onclick = async () => {
    itself playing audio, so a silent loop holds the audio focus while the real
    playback happens on the desktop. Autoplay rules mean it can only start from
    a user gesture, so the first tap on the page arms it. */
-function silentLoopUrl(seconds = 0.5, rate = 8000) {
+/* 30 seconds, not a fraction of one: Chrome treats short audio as a sound
+   effect, refuses it audio focus, and then shows no media controls at all */
+function silentLoopUrl(seconds = 30, rate = 8000) {
   const n = rate * seconds;
   const buf = new ArrayBuffer(44 + n);
   const v = new DataView(buf);
@@ -1652,33 +1654,41 @@ function silentLoopUrl(seconds = 0.5, rate = 8000) {
 const hold = $('hold');
 let mediaArmed = false;
 
-function armMediaSession() {
-  if (mediaArmed || !('mediaSession' in navigator)) return;
-  mediaArmed = true;
-  hold.src = silentLoopUrl();
-  hold.volume = 1;                        // the samples are silent, not the element
-  hold.play().catch(() => { mediaArmed = false; });
-
+function wireMediaHandlers() {
   const ms = navigator.mediaSession;
   const on = (name, fn) => { try { ms.setActionHandler(name, fn); } catch {} };
   on('play', () => act(() => api.post('/api/v1/play')));
   on('pause', () => act(() => api.post('/api/v1/pause')));
   on('previoustrack', () => act(() => api.post('/api/v1/previous')));
   on('nexttrack', () => act(() => api.post('/api/v1/next')));
-  on('seekbackward', (d) => act(() => api.post('/api/v1/go-back', { seconds: d.seekOffset || store.data.seekStep })));
-  on('seekforward', (d) => act(() => api.post('/api/v1/go-forward', { seconds: d.seekOffset || store.data.seekStep })));
+  on('seekbackward', (d) => act(() => api.post('/api/v1/go-back', { seconds: (d && d.seekOffset) || store.data.seekStep })));
+  on('seekforward', (d) => act(() => api.post('/api/v1/go-forward', { seconds: (d && d.seekOffset) || store.data.seekStep })));
   on('seekto', (d) => {
-    if (typeof d.seekTime !== 'number') return;
+    if (!d || typeof d.seekTime !== 'number') return;
     state.elapsed = d.seekTime; state.at = performance.now(); renderProgress();
     act(() => api.post('/api/v1/seek-to', { seconds: Math.round(d.seekTime) }));
   });
-  updateMediaSession();
+}
+
+/* Arming waits for play() to resolve before believing it worked, and stays
+   subscribed until it does. Setting the flag up front and unsubscribing after a
+   single gesture meant one rejected promise disabled this for the session. */
+function armMediaSession() {
+  if (mediaArmed || !('mediaSession' in navigator)) return;
+  if (!hold.src) hold.src = silentLoopUrl();
+  hold.play().then(() => {
+    mediaArmed = true;
+    wireMediaHandlers();
+    updateMediaSession();
+    removeEventListener('pointerdown', armMediaSession);
+    removeEventListener('keydown', armMediaSession);
+  }).catch(() => {});          // the next gesture tries again
 }
 /* the browser may stop the loop when the tab is backgrounded; bring it back so
    the notification does not vanish mid-track */
 hold.addEventListener('pause', () => { if (mediaArmed) hold.play().catch(() => {}); });
-addEventListener('pointerdown', armMediaSession, { once: true });
-addEventListener('keydown', armMediaSession, { once: true });
+addEventListener('pointerdown', armMediaSession);
+addEventListener('keydown', armMediaSession);
 
 let mediaTrack = null;
 function updateMediaSession() {
