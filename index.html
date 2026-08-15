@@ -612,6 +612,17 @@ const mmss = (s) => {
 };
 const compact = (n) => Number(n) >= 1000 ? Intl.NumberFormat('en', { notation: 'compact' }).format(n) : String(n || 0);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+/* Links carry whatever the connected server sent. This origin holds the saved
+   bearer tokens, so a javascript: href would be one click away from handing
+   them over; anything that is not plain http(s) is dropped. */
+function safeUrl(u) {
+  if (!u) return null;
+  try {
+    const parsed = new URL(u, location.href);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? parsed.href : null;
+  } catch { return null; }
+}
 const svg = (d, size) => {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   s.setAttribute('viewBox', '0 0 24 24');
@@ -758,9 +769,10 @@ function renderSong() {
     ? String(new Date(s.uploadDate).getFullYear()) : '';
   $('title').textContent = s.title || 'Untitled';
   /* artistUrl is absent from the documented schema but the player does send it */
-  if (s.artist && s.artistUrl) {
+  const artistHref = safeUrl(s.artistUrl);
+  if (s.artist && artistHref) {
     const a = el('a', null, s.artist);
-    a.href = s.artistUrl;
+    a.href = artistHref;
     a.target = '_blank';
     a.rel = 'noopener';
     a.title = 'Open ' + s.artist + ' on YouTube Music';
@@ -782,10 +794,12 @@ function renderSong() {
   if (s.mediaType) add(String(s.mediaType).replace(/_/g, ' ').toLowerCase());
   if (s.views) add(compact(s.views) + ' plays');
   if (year) add(year);
-  if (s.url || s.videoId) {
+  const watchHref = safeUrl(s.url) ||
+    (s.videoId ? 'https://music.youtube.com/watch?v=' + encodeURIComponent(s.videoId) : null);
+  if (watchHref) {
     const c = el('span', 'chip');
     const a = el('a', null, 'Open in YouTube');
-    a.href = s.url || ('https://music.youtube.com/watch?v=' + s.videoId);
+    a.href = watchHref;
     a.target = '_blank'; a.rel = 'noopener';
     c.appendChild(a); chips.appendChild(c);
   }
