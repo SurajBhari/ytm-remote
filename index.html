@@ -106,10 +106,12 @@ button{cursor:pointer}
 }
 .np > *{position:relative;z-index:1}
 .np-top{display:flex;gap:17px;align-items:flex-start}
+/* the record sits behind the artwork; a transparent src reveals it when nothing is playing */
 .art{
   width:132px;height:132px;flex:none;border-radius:8px;object-fit:cover;
-  background:#15161a;border:1px solid var(--edge);
+  border:1px solid var(--edge);
   box-shadow:0 8px 22px rgba(0,0,0,.55);
+  background:#15161a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%2315161a'/%3E%3Cg fill='none' stroke='%232f333d' stroke-width='1.4'%3E%3Ccircle cx='60' cy='60' r='38'/%3E%3Ccircle cx='60' cy='60' r='29'/%3E%3Ccircle cx='60' cy='60' r='20'/%3E%3C/g%3E%3Ccircle cx='60' cy='60' r='11' fill='%231d1f25' stroke='%232f333d' stroke-width='1.4'/%3E%3Ccircle cx='60' cy='60' r='2.6' fill='%237a5526'/%3E%3C/svg%3E") center/cover no-repeat;
 }
 .np-meta{min-width:0;flex:1;padding-top:2px}
 .np-title{
@@ -271,7 +273,7 @@ dialog::backdrop{background:rgba(8,9,11,.76);backdrop-filter:blur(3px)}
     <section class="panel np">
       <div class="haze" id="haze"></div>
       <div class="np-top">
-        <img class="art" id="art" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
+        <img class="art" id="art" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
         <div class="np-meta">
           <div class="label">Now playing</div>
           <h1 class="np-title" id="title">Nothing playing</h1>
@@ -340,7 +342,7 @@ dialog::backdrop{background:rgba(8,9,11,.76);backdrop-filter:blur(3px)}
           <span class="label" id="queueCount"></span>
           <button class="btn ghost danger" id="bQueueClear">Clear</button>
         </div>
-        <div id="queueList"></div>
+        <div id="queueList"><div class="empty"><strong>No player connected</strong>Add your YouTube Music player under Connections to see the queue.</div></div>
       </div>
 
       <div class="pane" id="paneSearch" role="tabpanel" hidden>
@@ -450,6 +452,8 @@ const api = {
 
 /* ---------------- helpers ---------------- */
 const $ = (id) => document.getElementById(id);
+/* transparent 1x1: lets the record placeholder behind .art show through */
+const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 const mmss = (s) => {
   s = Math.max(0, Math.floor(s || 0));
   const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
@@ -511,14 +515,20 @@ function renderSong() {
     $('artist').textContent = connected ? 'Start a song in YouTube Music' : 'Add your player under Connections';
     $('album').textContent = '';
     $('chips').replaceChildren();
-    $('art').removeAttribute('src');
+    $('art').src = BLANK;
     $('haze').style.backgroundImage = '';
     return;
   }
   $('title').textContent = s.title || 'Untitled';
   $('artist').textContent = s.artist || '';
   $('album').textContent = s.album || '';
-  if (s.imageSrc) { $('art').src = s.imageSrc; $('haze').style.backgroundImage = `url("${s.imageSrc}")`; }
+  if (s.imageSrc) {
+    $('art').src = s.imageSrc;
+    $('haze').style.backgroundImage = `url("${s.imageSrc}")`;
+  } else {
+    $('art').src = BLANK;
+    $('haze').style.backgroundImage = '';
+  }
 
   const chips = $('chips');
   chips.replaceChildren();
@@ -1040,6 +1050,14 @@ function frame() {
 requestAnimationFrame(frame);
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && active()) { pollSong(); pollAux(); } });
+
+/* artwork that fails to load falls back to the placeholder instead of a broken icon
+   (error does not bubble, so this listens during capture) */
+document.addEventListener('error', (e) => {
+  const t = e.target;
+  if (!t || t.tagName !== 'IMG' || t.src === BLANK) return;
+  if (t.id === 'art') t.src = BLANK; else t.remove();
+}, true);
 
 renderSong(); renderProgress(); renderTransport();
 if (!store.data.connections.length) {
