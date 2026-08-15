@@ -102,7 +102,7 @@ img{display:block}
 /* the wrapper takes the leftover height, and --art-size is measured from it so
    the cover stays square while shrinking; max-height alone would squash it */
 .art-wrap{flex:1 1 auto;min-height:0;width:100%;display:flex;justify-content:center;align-items:center}
-.now-meta,.actions{flex:none}
+.actions{flex:none}
 .art{
   width:var(--art-size,100%);aspect-ratio:1;
   border-radius:var(--r-md);object-fit:cover;
@@ -111,20 +111,7 @@ img{display:block}
   box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.4),0 16px 48px rgba(0,0,0,.3);
   outline:1px solid var(--img-line);outline-offset:-1px;
 }
-.now-meta{padding:16px 4px 8px;text-align:center}
-.now-title{font-size:clamp(20px,2.4vw,26px);font-weight:700;line-height:1.25;margin:0;overflow-wrap:anywhere;text-wrap:balance}
-.now-artist{color:var(--text-2);font-size:15px;margin-top:4px;overflow-wrap:anywhere}
-/* the artist reads as text until you reach for it, the way the app behaves */
-.now-artist a{color:inherit;text-decoration:none;border-radius:var(--r-sm)}
-.now-artist a:hover{color:var(--text);text-decoration:underline}
-.now-album{color:var(--text-3);font-size:13px;margin-top:4px;overflow-wrap:anywhere}
-.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px}
-.chip{
-  font-size:11px;color:var(--text-2);background:var(--surface);
-  border-radius:var(--r-sm);padding:4px 8px;
-}
-.chip a{color:inherit}
-/* action pills under the title; the phone layout only. the pill shape is the
+/* action pills under the artwork; the phone layout only. the pill shape is the
    reference app's own, not a default. unslop-ignore */
 .actions{display:none;gap:8px;margin-top:16px;flex-wrap:wrap}
 .chip-btn,.actions .ib{
@@ -253,15 +240,12 @@ img{display:block}
 .empty strong{display:block;color:var(--text);font-size:15px;font-weight:500;margin-bottom:8px;text-wrap:balance}
 
 /* ---- track change ----
-   a new track is four separate pieces of information, so they arrive as four
-   about 60ms apart rather than as one block appearing at once */
+   the name and the credits are two separate pieces of information, so they
+   arrive 60ms apart rather than as one block appearing at once */
 @keyframes rise{from{opacity:0;translate:0 8px}to{opacity:1;translate:0 0}}
 @keyframes settle{from{opacity:0;scale:.98}to{opacity:1;scale:1}}
-.now-meta.swap>*{animation:rise .32s cubic-bezier(.2,0,0,1) both}
-.now-meta.swap>*:nth-child(2){animation-delay:60ms}
-.now-meta.swap>*:nth-child(3){animation-delay:120ms}
-.now-meta.swap>*:nth-child(4){animation-delay:180ms}
-.now-meta.swap>*:nth-child(5){animation-delay:240ms}
+.txt.swap>*{animation:rise .32s cubic-bezier(.2,0,0,1) both}
+.txt.swap>*:nth-child(2){animation-delay:60ms}
 .art.swap{animation:settle .4s cubic-bezier(.2,0,0,1) both}
 
 .field{
@@ -284,10 +268,10 @@ img{display:block}
   position:absolute;top:0;left:0;right:0;height:12px;z-index:2;
   cursor:pointer;touch-action:none;
 }
-.track .rail{position:absolute;top:0;left:0;right:0;height:3px;background:rgba(255,255,255,.24)}
-.track .fill{position:absolute;top:0;left:0;height:3px;background:var(--accent);width:0}
+.track .rail{position:absolute;top:0;left:0;right:0;height:4px;background:rgba(255,255,255,.24)}
+.track .fill{position:absolute;top:0;left:0;height:4px;background:var(--accent);width:0}
 .track .knob{
-  position:absolute;top:1.5px;width:12px;height:12px;border-radius:var(--r-round);
+  position:absolute;top:2px;width:12px;height:12px;border-radius:var(--r-round);
   background:var(--accent);transform:translate(-50%,-50%);opacity:0;
   transition-property:opacity,top;transition-duration:.12s;
 }
@@ -313,15 +297,29 @@ img{display:block}
 
 /* current track, centred */
 .pb-track{display:flex;align-items:center;gap:8px;flex:0 1 auto;min-width:0}
-.pb-open{display:flex;align-items:center;gap:12px;min-width:0;text-align:left;padding:4px;border-radius:var(--r-md)}
+/* The artwork and the title open the player; the line under them carries links,
+   and an anchor cannot live inside a button, so the two are siblings rather
+   than one wrapping control. */
+.pb-open{display:flex;align-items:center;min-width:0;padding:4px;border-radius:var(--r-md)}
 .pb-open img{
   width:40px;height:40px;border-radius:var(--r-sm);object-fit:cover;flex:none;background:#0f0f0f;
   outline:1px solid var(--img-line);outline-offset:-1px;
 }
-.pb-open .txt{min-width:0;display:flex;flex-direction:column}
-.pb-open .t{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pb-open .s{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pb-open:hover{background:var(--hover)}
+.pb-track .txt{min-width:0;display:flex;flex-direction:column;align-items:flex-start}
+.pb-track .t{
+  max-width:100%;font-size:13px;text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.pb-track .t:hover{text-decoration:underline}
+/* 13px of text jitters when it scales, so this control opts out of the press */
+.pb-track .t:active{scale:1}
+.pb-track .s{
+  max-width:100%;font-size:12px;color:var(--text-2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.pb-track .s a{color:inherit;text-decoration:none;border-radius:var(--r-sm)}
+.pb-track .s a:hover{color:var(--text);text-decoration:underline}
 .ib{width:40px;height:40px;border-radius:var(--r-round);display:grid;place-items:center;color:var(--text);flex:none}
 .ib:hover{background:var(--hover)}
 .ib svg{width:22px;height:22px;fill:currentColor;pointer-events:none}
@@ -389,15 +387,34 @@ img{display:block}
   }
   /* the reference puts shuffle and repeat on the transport row, so the whole
      bar is one column: times, then a single row of controls */
-  body[data-view="player"] .pb-transport{flex:1 0 100%;flex-direction:column-reverse;align-items:center;gap:10px}
-  /* inset the scrubber and its readout from the screen edges */
-  body[data-view="player"] .track{left:16px;right:16px}
+  body[data-view="player"] .pb-transport{order:2;flex:1 0 100%;flex-direction:column-reverse;align-items:center;gap:10px}
+  /* Here the scrubber joins the column instead of hugging the bar's top edge,
+     so the order reads title, scrubber, times, controls. Relative rather than
+     static, because the rail inside it still needs this as its containing box.
+     The 16px band is a touch target; the 4px rail is centred in it and grows
+     about that centre, so the knob never has to move. */
+  body[data-view="player"] .track{
+    position:relative;order:1;flex:1 0 100%;left:auto;right:auto;height:16px;
+  }
+  body[data-view="player"] .track .rail,
+  body[data-view="player"] .track .fill{top:6px}
+  body[data-view="player"] .track:hover .rail,body[data-view="player"] .track.live .rail,
+  body[data-view="player"] .track:hover .fill,body[data-view="player"] .track.live .fill{top:5px}
+  body[data-view="player"] .track .knob,
+  body[data-view="player"] .track:hover .knob,
+  body[data-view="player"] .track.live .knob{top:8px}
   /* the bar's own 16px padding already puts this on the page gutter, the same
      one the scrubber, the title and the header sit on */
   body[data-view="player"] .times{width:100%;margin:0;padding:0;justify-content:space-between;font-size:12px}
   body[data-view="player"] .times .sep{display:none}
+  /* the track text is the same block the bar shows everywhere else, moved to
+     its own row above the scrubber and left-aligned on the page gutter. the
+     thumbnail goes: the full size artwork is right above it */
+  body[data-view="player"] .pb-track{flex:1 0 100%;order:0;gap:0}
   body[data-view="player"] .pb-open{display:none}
-  body[data-view="player"] .pb-track{display:none}
+  body[data-view="player"] .pb-track .txt{flex:1;min-width:0}
+  body[data-view="player"] .pb-track .t{font-size:20px;font-weight:700;line-height:1.3}
+  body[data-view="player"] .pb-track .s{font-size:14px;margin-top:4px}
   body[data-view="player"] .pb-right{flex:0 0 100%;order:3;gap:24px;justify-content:center}
   body[data-view="player"] .vol{display:none}
   /* five across, as in the app: shuffle, prev, play, next, repeat.
@@ -411,10 +428,8 @@ img{display:block}
   body[data-view="player"] .ib.play:hover{background:#e6e6e6}
   body[data-view="player"] .ib.play svg{width:32px;height:32px}
   body[data-view="player"] .now{overflow:hidden;justify-content:center}
-  /* the app left-aligns the track text on a phone and shows the action pills */
-  body[data-view="player"] .now-meta{text-align:left;padding:16px 4px 8px}
-  body[data-view="player"] .chips{justify-content:flex-start}
-  body[data-view="player"] .actions{display:flex}
+  /* the app shows the rating and fullscreen pills under the artwork on a phone */
+  body[data-view="player"] .actions{display:flex;padding:16px 4px 0}
   body[data-view="player"] .art{max-width:100%}
   .track .knob{opacity:1}
 }
@@ -496,15 +511,10 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
       <div class="art-wrap">
         <img class="art" id="art" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
       </div>
-      <div class="now-meta">
-        <h1 class="now-title" id="title">Nothing playing</h1>
-        <div class="now-artist" id="artist">Add your player under Connections</div>
-        <div class="now-album" id="album"></div>
-        <div class="chips" id="chips"></div>
-        <!-- rating and fullscreen move in here on a phone, as in the app;
-             lyrics has its own tab in the bottom bar -->
-        <div class="actions" id="actions"></div>
-      </div>
+      <!-- rating and fullscreen move in here on a phone, as in the app;
+           lyrics has its own tab in the bottom bar. the track's name and
+           credits are the player bar's job at every size -->
+      <div class="actions" id="actions"></div>
     </section>
 
     <!-- queue / search -->
@@ -573,11 +583,11 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
     <div class="pb-track">
       <button class="pb-open" id="miniOpen" aria-label="Open the player">
         <img id="barArt" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-        <span class="txt">
-          <span class="t" id="barTitle">Nothing playing</span>
-          <span class="s" id="barSub"></span>
-        </span>
       </button>
+      <span class="txt">
+        <button class="t" id="barTitle" title="Open the player">Nothing playing</button>
+        <span class="s" id="barSub"></span>
+      </span>
       <button class="ib small" id="bLike" aria-label="Like" title="Like (L)">
         <svg viewBox="0 0 24 24"><path d="M2 10h4v11H2zM8 10l5-8a2.4 2.4 0 0 1 2.2 3.2L14 9h5.6A2.4 2.4 0 0 1 22 11.8l-1.7 7A2.6 2.6 0 0 1 17.8 21H8z"/></svg></button>
       <button class="ib small" id="bDislike" aria-label="Dislike" title="Dislike">
@@ -696,7 +706,6 @@ const mmss = (s) => {
   const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
   return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0');
 };
-const compact = (n) => Number(n) >= 1000 ? Intl.NumberFormat('en', { notation: 'compact' }).format(n) : String(n || 0);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 /* Links carry whatever the connected server sent. This origin holds the saved
@@ -854,65 +863,62 @@ let animatedFor = null;
 function animateSwap(videoId) {
   if (!videoId || videoId === animatedFor) return;
   animatedFor = videoId;
-  for (const node of [document.querySelector('.now-meta'), $('art')]) {
+  for (const node of [document.querySelector('.pb-track .txt'), $('art')]) {
     node.classList.remove('swap');
     void node.offsetWidth;
     node.classList.add('swap');
   }
 }
 
+/* The player sends no album address, so the album falls back to a search, which
+   is where YouTube Music sends you for an album it has to look up anyway. */
+const ytmSearch = (q) => 'https://music.youtube.com/search?q=' + encodeURIComponent(q);
+
+function outLink(text, href) {
+  const a = el('a', null, text);
+  a.href = href;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.title = 'Open ' + text + ' on YouTube Music';
+  return a;
+}
+
 function renderSong() {
   const s = state.song;
+  const sub = $('barSub');
   if (!s) {
-    const msg = connected ? 'Nothing playing' : 'Not connected';
-    $('title').textContent = msg;
-    $('artist').textContent = connected ? 'Start a song in YouTube Music' : 'Add your player under Connections';
-    $('album').textContent = '';
-    $('chips').replaceChildren();
     $('art').src = BLANK; $('barArt').src = BLANK;
-    $('barTitle').textContent = msg; $('barSub').textContent = '';
+    $('barTitle').textContent = connected ? 'Nothing playing' : 'Not connected';
+    sub.textContent = connected ? 'Start a song in YouTube Music' : 'Add your player under Connections';
     applyTheme(null);
     animatedFor = null;
     return;
   }
   const year = s.uploadDate && !isNaN(new Date(s.uploadDate))
     ? String(new Date(s.uploadDate).getFullYear()) : '';
-  $('title').textContent = s.title || 'Untitled';
-  /* artistUrl is absent from the documented schema but the player does send it */
-  const artistHref = safeUrl(s.artistUrl);
-  if (s.artist && artistHref) {
-    const a = el('a', null, s.artist);
-    a.href = artistHref;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    a.title = 'Open ' + s.artist + ' on YouTube Music';
-    $('artist').replaceChildren(a);
-  } else {
-    $('artist').textContent = s.artist || '';
-  }
-  $('album').textContent = s.album || '';
   $('barTitle').textContent = s.title || 'Untitled';
-  /* artist • album • year, the way the reference bar reads */
-  $('barSub').textContent = [s.artist, s.album, year].filter(Boolean).join(' • ');
+
+  /* artist • album • year, the way the reference bar reads. The first two are
+     places you can go, so they are links; the year is not. */
+  sub.replaceChildren();
+  const part = (node) => {
+    if (sub.childNodes.length) sub.appendChild(document.createTextNode(' • '));
+    sub.appendChild(node);
+  };
+  if (s.artist) {
+    /* artistUrl is absent from the documented schema but the player does send it */
+    const href = safeUrl(s.artistUrl);
+    part(href ? outLink(s.artist, href) : document.createTextNode(s.artist));
+  }
+  if (s.album) {
+    const href = safeUrl(s.albumUrl) || ytmSearch([s.album, s.artist].filter(Boolean).join(' '));
+    part(outLink(s.album, href));
+  }
+  if (year) part(document.createTextNode(year));
+
   const art = s.imageSrc || BLANK;
   $('art').src = art; $('barArt').src = art;
   themeFromArt(s.imageSrc);
-
-  const chips = $('chips');
-  chips.replaceChildren();
-  const add = (t) => chips.appendChild(el('span', 'chip', t));
-  if (s.mediaType) add(String(s.mediaType).replace(/_/g, ' ').toLowerCase());
-  if (s.views) add(compact(s.views) + ' plays');
-  if (year) add(year);
-  const watchHref = safeUrl(s.url) ||
-    (s.videoId ? 'https://music.youtube.com/watch?v=' + encodeURIComponent(s.videoId) : null);
-  if (watchHref) {
-    const c = el('span', 'chip');
-    const a = el('a', null, 'Open in YouTube');
-    a.href = watchHref;
-    a.target = '_blank'; a.rel = 'noopener';
-    c.appendChild(a); chips.appendChild(c);
-  }
   animateSwap(s.videoId);
 }
 
