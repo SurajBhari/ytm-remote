@@ -31,8 +31,14 @@
   --nav-h:56px;
   --r-sm:4px;
   --r-md:8px;
+  /* rows are 4px art inside 8px padding, dialogs 8px cards inside 12px padding */
+  --r-row:12px;
+  --r-lg:20px;
   /* unslop-ignore — circular transport buttons are the reference UI's own shape */
   --r-round:50%;
+  /* every image gets the same hairline so covers of any brightness sit on the
+     surface the same way */
+  --img-line:rgba(255,255,255,.1);
   --font:'Roboto',system-ui,Arial,sans-serif; /* unslop-ignore */
 }
 *{box-sizing:border-box}
@@ -44,6 +50,11 @@ body{
   font-size:14px;
   line-height:1.45;
   -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  /* counters, durations and the clock all tick in place instead of nudging
+     their neighbours a pixel each second */
+  font-variant-numeric:tabular-nums;
+  text-wrap:pretty;
   overflow:hidden;
 }
 /* art-derived wash, the way the reference tints its player page */
@@ -53,7 +64,15 @@ body::before{
   transition:background 700ms ease;
 }
 button,input{font:inherit;color:inherit}
-button{cursor:pointer;background:none;border:none;padding:0}
+button{
+  cursor:pointer;background:none;border:none;padding:0;
+  /* the press is the only thing that scales, so it can be interrupted by the
+     next press instead of queueing behind a keyframe */
+  transition-property:scale,background-color,color,opacity;
+  transition-duration:.12s;
+  transition-timing-function:cubic-bezier(.2,0,0,1);
+}
+button:active:not([disabled]){scale:.96}
 :focus-visible{outline:2px solid var(--text);outline-offset:2px}
 img{display:block}
 /* display on .ib/.tab would otherwise beat the UA rule for [hidden] */
@@ -63,19 +82,19 @@ img{display:block}
 /* ============ shell ============ */
 .app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;min-height:0}
 .top{
-  display:flex;align-items:center;gap:12px;padding:10px 16px;flex:none;
-  padding-top:max(10px,env(safe-area-inset-top));
+  display:flex;align-items:center;gap:12px;padding:12px 16px;flex:none;
+  padding-top:max(12px,env(safe-area-inset-top));
 }
 .brand{display:flex;align-items:center;gap:8px;font-weight:500;font-size:15px;letter-spacing:.01em}
 .brand svg{width:20px;height:20px;flex:none}
 .top .grow{flex:1}
 .lamp{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3)}
-.lamp i{width:7px;height:7px;border-radius:var(--r-round);background:#606060;flex:none}
+.lamp i{width:8px;height:8px;border-radius:var(--r-round);background:#606060;flex:none}
 .lamp.on i{background:#2ba640}
 .lamp.warn i{background:#ffa700}
 .lamp.err i{background:#ff0033}
 
-.content{flex:1;display:flex;gap:24px;padding:0 16px 12px;min-height:0;overflow:hidden}
+.content{flex:1;display:flex;gap:24px;padding:0 16px 16px;min-height:0;overflow:hidden}
 
 /* ============ now playing ============ */
 /* nothing here scrolls; the artwork gives up height instead */
@@ -88,38 +107,41 @@ img{display:block}
   width:var(--art-size,100%);aspect-ratio:1;
   border-radius:var(--r-md);object-fit:cover;
   background:#0f0f0f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%230f0f0f'/%3E%3Cg fill='none' stroke='%23303030' stroke-width='2'%3E%3Ccircle cx='60' cy='60' r='30'/%3E%3C/g%3E%3Cpath d='M52 46v28a7 7 0 1 1-4-6.3V42l24-6v24a7 7 0 1 1-4-6.3V41z' fill='%23404040'/%3E%3C/svg%3E") center/cover no-repeat;
-  box-shadow:0 4px 24px rgba(0,0,0,.5);
+  /* three transparent layers read as depth; one hard shadow reads as a border */
+  box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.4),0 16px 48px rgba(0,0,0,.3);
+  outline:1px solid var(--img-line);outline-offset:-1px;
 }
-.now-meta{padding:18px 2px 8px;text-align:center}
-.now-title{font-size:clamp(19px,2.4vw,26px);font-weight:700;line-height:1.25;margin:0;overflow-wrap:anywhere}
-.now-artist{color:var(--text-2);font-size:15px;margin-top:5px;overflow-wrap:anywhere}
+.now-meta{padding:16px 4px 8px;text-align:center}
+.now-title{font-size:clamp(20px,2.4vw,26px);font-weight:700;line-height:1.25;margin:0;overflow-wrap:anywhere;text-wrap:balance}
+.now-artist{color:var(--text-2);font-size:15px;margin-top:4px;overflow-wrap:anywhere}
 /* the artist reads as text until you reach for it, the way the app behaves */
-.now-artist a{color:inherit;text-decoration:none;border-radius:3px}
+.now-artist a{color:inherit;text-decoration:none;border-radius:var(--r-sm)}
 .now-artist a:hover{color:var(--text);text-decoration:underline}
-.now-album{color:var(--text-3);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
-.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:12px}
+.now-album{color:var(--text-3);font-size:13px;margin-top:4px;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px}
 .chip{
   font-size:11px;color:var(--text-2);background:var(--surface);
-  border-radius:var(--r-sm);padding:3px 8px;
+  border-radius:var(--r-sm);padding:4px 8px;
 }
 .chip a{color:inherit}
 /* action pills under the title; the phone layout only. the pill shape is the
    reference app's own, not a default. unslop-ignore */
-.actions{display:none;gap:8px;margin-top:14px;flex-wrap:wrap}
+.actions{display:none;gap:8px;margin-top:16px;flex-wrap:wrap}
 .chip-btn,.actions .ib{
-  display:inline-flex;align-items:center;gap:7px;justify-content:center;
-  height:38px;width:auto;padding:0 15px;border-radius:999px; /* unslop-ignore: the app's own chip shape */
+  display:inline-flex;align-items:center;gap:8px;justify-content:center;
+  height:40px;width:auto;padding:0 16px;border-radius:999px; /* unslop-ignore: the app's own chip shape */
   background:rgba(255,255,255,.1);color:var(--text);font-size:13px;font-weight:500;
 }
 .chip-btn:hover,.actions .ib:hover{background:rgba(255,255,255,.16)}
-.chip-btn svg,.actions .ib svg{width:19px;height:19px;fill:currentColor}
+.chip-btn svg,.actions .ib svg{width:20px;height:20px;fill:currentColor}
 .actions .ib.on{color:var(--accent)}
 
 /* ============ side pane ============ */
 .side{flex:1 1 56%;min-width:0;display:flex;flex-direction:column;min-height:0}
-.tabs{display:flex;gap:8px;flex:none;padding-bottom:6px}
+.tabs{display:flex;gap:8px;flex:none;padding-bottom:8px}
 .tab{
-  color:var(--text-3);font-size:13px;font-weight:500;padding:7px 12px;border-radius:var(--r-sm);
+  display:inline-flex;align-items:center;justify-content:center;min-height:40px;
+  color:var(--text-3);font-size:13px;font-weight:500;padding:0 12px;border-radius:var(--r-md);
 }
 .tab:hover{color:var(--text);background:var(--hover)}
 .tab[aria-selected="true"]{color:var(--text);background:var(--surface)}
@@ -131,20 +153,14 @@ img{display:block}
   -webkit-mask-image:linear-gradient(to bottom,transparent,#000 10%,#000 88%,transparent);
   mask-image:linear-gradient(to bottom,transparent,#000 10%,#000 88%,transparent);
 }
-.lyr-head{
-  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  padding:2px 2px 12px;font-size:12px;color:var(--text-3);
-}
-.lyr-badge{
-  font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--accent);border:1px solid currentColor;border-radius:var(--r-sm);padding:1px 6px;
-}
+/* only present when the matched lyrics may drift against this recording */
+.lyr-head{padding:4px 4px 12px;font-size:12px;color:var(--text-3);text-wrap:pretty}
 .lyrics{max-width:680px;margin:0 auto;width:100%}
 .lyric{
   display:block;width:100%;text-align:left;
-  font-size:19px;line-height:1.45;font-weight:500;
+  font-size:18px;line-height:1.45;font-weight:500;
   color:rgba(255,255,255,.38);
-  padding:9px 10px;border-radius:var(--r-sm);
+  padding:8px 12px;border-radius:var(--r-md);
   transition:color .3s ease;
   overflow-wrap:anywhere;
 }
@@ -165,57 +181,92 @@ img{display:block}
   letter-spacing:-.01em;color:rgba(255,255,255,.34);
   margin:clamp(4px,1.1vh,12px) 0;cursor:pointer;
   opacity:0;transform:scale(.96);transform-origin:left center;pointer-events:none;
-  transition:opacity .4s ease,transform .4s cubic-bezier(.22,.61,.36,1),color .4s ease;
+  transition:opacity .4s ease,transform .4s cubic-bezier(.22,.61,.36,1),
+             color .4s ease,filter .4s ease;
 }
-/* only the five around the centre are lit, so the rest fade out of the way */
-.lyrics.synced .lyric.near{opacity:.42;pointer-events:auto}
-.lyrics.synced .lyric.on{opacity:1;color:var(--text);transform:scale(1);pointer-events:auto}
-.lyrics.synced .lyric.near:hover{color:rgba(255,255,255,.75)}
+/* The whole window stays on screen. --d is the line's distance from the active
+   one and drives both the defocus and the dimming, so the column reads as depth
+   with one line in focus rather than as five lines at one brightness. The far
+   edge lands near zero, so lines dissolve in instead of appearing. */
+.lyrics.synced .lyric.near{
+  opacity:calc(.26 - var(--d,0) * .035);
+  filter:blur(calc(var(--d,0) * 1.5px));
+  pointer-events:auto;
+}
+.lyrics.synced .lyric.on{opacity:1;color:var(--text);transform:scale(1);filter:blur(0);pointer-events:auto}
+/* hovering pulls a line back into focus, so you can read what you would seek to */
+.lyrics.synced .lyric.near:hover{opacity:.7;filter:blur(0);color:rgba(255,255,255,.9)}
 .lyrics.synced .lyric.blank{font-size:26px}
 .lyrics.synced .lyric.blank.on{color:var(--accent)}
 
+/* a lyric line is set at display size; scaling it on press reads as a glitch,
+   so the shared button press is opted out of here */
+.lyric:active{scale:1}
 /* plain lyrics have no timing, so nothing is clickable and the list scrolls */
 .lyrics.plain .lyric{color:rgba(255,255,255,.82);cursor:default;font-size:18px}
 @media(max-width:719px){
-  .lyrics.synced .lyric{font-size:clamp(25px,6.6vw,34px)}
-  .lyrics.plain .lyric{font-size:19px}
+  .lyrics.synced .lyric{font-size:clamp(24px,6.6vw,34px)}
+  .lyrics.plain .lyric{font-size:20px}
 }
 .pane::-webkit-scrollbar{width:8px}
 .pane::-webkit-scrollbar-thumb{background:#4a4a4a;border-radius:var(--r-sm)}
-.pane-bar{display:flex;gap:8px;align-items:center;padding:2px 0 10px;flex-wrap:wrap}
-.txtbtn{color:var(--text-2);font-size:13px;font-weight:500;padding:6px 10px;border-radius:var(--r-sm)}
+.pane-bar{display:flex;gap:8px;align-items:center;padding:0 0 8px;flex-wrap:wrap}
+.txtbtn{
+  display:inline-flex;align-items:center;justify-content:center;min-height:40px;
+  color:var(--text-2);font-size:13px;font-weight:500;padding:0 12px;border-radius:var(--r-md);
+}
 .txtbtn:hover{color:var(--text);background:var(--hover)}
 .count{color:var(--text-3);font-size:12px;margin-left:auto}
 
 /* ============ rows ============ */
-.row{display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer}
+/* 4px artwork sitting in 8px of padding wants a 12px outer corner */
+.row{display:flex;align-items:center;gap:12px;padding:8px;border-radius:var(--r-row);cursor:pointer}
 .row:hover{background:var(--hover)}
-.row .idx{font-size:12px;color:var(--text-3);width:22px;flex:none;text-align:right}
-.row img{width:40px;height:40px;border-radius:var(--r-sm);object-fit:cover;flex:none;background:#0f0f0f}
+.row .idx{font-size:12px;color:var(--text-3);width:24px;flex:none;text-align:right}
+.row img{
+  width:40px;height:40px;border-radius:var(--r-sm);object-fit:cover;flex:none;background:#0f0f0f;
+  outline:1px solid var(--img-line);outline-offset:-1px;
+}
 .row .txt{min-width:0;flex:1}
 .row .t{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .s{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .dur{font-size:12px;color:var(--text-3);flex:none}
-.row .acts{display:flex;gap:2px;flex:none;opacity:0}
+/* 8px between 32px buttons is what makes their 40px hit areas meet exactly
+   rather than overlap */
+.row .acts{display:flex;gap:8px;flex:none;opacity:0;transition:opacity .12s cubic-bezier(.2,0,0,1)}
 .row:hover .acts,.row:focus-within .acts{opacity:1}
 @media(hover:none){.row .acts{opacity:1}}
-.row .acts button{width:32px;height:32px;border-radius:var(--r-round);display:grid;place-items:center;color:var(--text-2)}
+.row .acts button{position:relative;width:32px;height:32px;border-radius:var(--r-round);display:grid;place-items:center;color:var(--text-2)}
+/* the glyph stays 32px; the thing a finger has to land on is 40px */
+.row .acts button::after{content:'';position:absolute;inset:-4px}
 .row .acts button:hover{background:var(--hover);color:var(--text)}
 .row .acts svg{width:18px;height:18px;fill:currentColor}
 .row.playing .t{color:var(--accent);font-weight:500}
 .row.playing .idx{color:var(--accent)}
-.bars{display:flex;align-items:flex-end;gap:2px;width:22px;height:14px;justify-content:center}
-.bars i{width:2.5px;background:var(--accent);animation:eq .9s ease-in-out infinite}
+.bars{display:flex;align-items:flex-end;gap:2px;width:24px;height:14px;justify-content:center}
+.bars i{width:3px;background:var(--accent);animation:eq .9s ease-in-out infinite}
 .bars i:nth-child(2){animation-delay:.3s}
 .bars i:nth-child(3){animation-delay:.6s}
-@keyframes eq{0%,100%{height:4px}50%{height:13px}}
+@keyframes eq{0%,100%{height:4px}50%{height:14px}}
 
-.empty{text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px}
-.empty strong{display:block;color:var(--text);font-size:15px;font-weight:500;margin-bottom:6px}
+.empty{text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px;text-wrap:pretty}
+.empty strong{display:block;color:var(--text);font-size:15px;font-weight:500;margin-bottom:8px;text-wrap:balance}
+
+/* ---- track change ----
+   a new track is four separate pieces of information, so they arrive as four
+   about 60ms apart rather than as one block appearing at once */
+@keyframes rise{from{opacity:0;translate:0 8px}to{opacity:1;translate:0 0}}
+@keyframes settle{from{opacity:0;scale:.98}to{opacity:1;scale:1}}
+.now-meta.swap>*{animation:rise .32s cubic-bezier(.2,0,0,1) both}
+.now-meta.swap>*:nth-child(2){animation-delay:60ms}
+.now-meta.swap>*:nth-child(3){animation-delay:120ms}
+.now-meta.swap>*:nth-child(4){animation-delay:180ms}
+.now-meta.swap>*:nth-child(5){animation-delay:240ms}
+.art.swap{animation:settle .4s cubic-bezier(.2,0,0,1) both}
 
 .field{
-  background:var(--surface);border:1px solid transparent;border-radius:var(--r-sm);
-  padding:9px 12px;color:var(--text);width:100%;
+  background:var(--surface);border:1px solid transparent;border-radius:var(--r-md);
+  padding:10px 12px;min-height:40px;color:var(--text);width:100%;
 }
 .field::placeholder{color:var(--text-3)}
 .field:focus{outline:none;border-color:var(--line);background:var(--surface-2)}
@@ -237,54 +288,67 @@ img{display:block}
 .track .fill{position:absolute;top:0;left:0;height:3px;background:var(--accent);width:0}
 .track .knob{
   position:absolute;top:1.5px;width:12px;height:12px;border-radius:var(--r-round);
-  background:var(--accent);transform:translate(-50%,-50%);opacity:0;transition:opacity .12s;
+  background:var(--accent);transform:translate(-50%,-50%);opacity:0;
+  transition-property:opacity,top;transition-duration:.12s;
 }
 .track:hover .rail,.track:focus-visible .rail,.track.live .rail,
-.track:hover .fill,.track:focus-visible .fill,.track.live .fill{height:5px}
+.track:hover .fill,.track:focus-visible .fill,.track.live .fill{height:6px}
 .track:hover .knob,.track:focus-visible .knob,.track.live .knob{opacity:1}
+/* the rail thickens on hover, so the knob's centre has to move with it or it
+   sits a pixel high on the fatter line */
+.track:hover .knob,.track:focus-visible .knob,.track.live .knob{top:3px}
 .track[aria-disabled="true"]{cursor:default}
 .track[aria-disabled="true"] .knob{opacity:0}
 /* transport sits on the left, with the readout beside it */
-/* no min-width:0 here: the readout must never be shrunk into a clip */
-.pb-transport{display:flex;align-items:center;gap:4px;flex:1 1 auto}
+/* no min-width:0 here: the readout must never be shrunk into a clip.
+   both flanks share one basis so the free space splits evenly and the track
+   in the middle is actually centred rather than nearly centred */
+.pb-transport{display:flex;align-items:center;gap:4px;flex:1 1 0}
 .ctrls{display:flex;align-items:center;gap:4px}
 .times{
-  display:flex;align-items:center;gap:4px;margin-left:10px;white-space:nowrap;
+  display:flex;align-items:center;gap:4px;margin-left:12px;white-space:nowrap;
   font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums;
 }
 .times .sep{opacity:.6}
 
 /* current track, centred */
-.pb-track{display:flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}
-.pb-open{display:flex;align-items:center;gap:12px;min-width:0;text-align:left;border-radius:var(--r-sm)}
-.pb-open img{width:40px;height:40px;border-radius:var(--r-sm);object-fit:cover;flex:none;background:#0f0f0f}
+.pb-track{display:flex;align-items:center;gap:8px;flex:0 1 auto;min-width:0}
+.pb-open{display:flex;align-items:center;gap:12px;min-width:0;text-align:left;padding:4px;border-radius:var(--r-md)}
+.pb-open img{
+  width:40px;height:40px;border-radius:var(--r-sm);object-fit:cover;flex:none;background:#0f0f0f;
+  outline:1px solid var(--img-line);outline-offset:-1px;
+}
 .pb-open .txt{min-width:0;display:flex;flex-direction:column}
 .pb-open .t{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pb-open .s{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ib{width:38px;height:38px;border-radius:var(--r-round);display:grid;place-items:center;color:var(--text);flex:none}
+.pb-open:hover{background:var(--hover)}
+.ib{width:40px;height:40px;border-radius:var(--r-round);display:grid;place-items:center;color:var(--text);flex:none}
 .ib:hover{background:var(--hover)}
 .ib svg{width:22px;height:22px;fill:currentColor;pointer-events:none}
-.ib.small svg{width:19px;height:19px}
+.ib.small svg{width:20px;height:20px}
 /* plain glyph in the bar, as in the reference; the filled circle is used
    only in the mobile player view below */
-.ib.play{width:44px;height:44px}
-.ib.play svg{width:29px;height:29px}
+.ib.play{width:48px;height:48px}
+.ib.play svg{width:28px;height:28px}
 .ib.on{color:var(--accent)}
-.ib[disabled]{opacity:.35;cursor:default}
+.ib[disabled]{opacity:.4;cursor:default}
 
-.pb-right{display:flex;align-items:center;gap:2px;flex:1 1 0;justify-content:flex-end}
-.vol{display:flex;align-items:center;gap:6px}
+.pb-right{display:flex;align-items:center;gap:4px;flex:1 1 0;justify-content:flex-end}
+.vol{display:flex;align-items:center;gap:8px}
+/* 40px tall so the slider is as easy to grab as the buttons beside it; only
+   the 4px rail inside it is painted */
 .vol input{
-  -webkit-appearance:none;appearance:none;background:none;width:82px;height:16px;cursor:pointer;
+  -webkit-appearance:none;appearance:none;background:none;width:80px;height:40px;cursor:pointer;
 }
-.vol input::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:rgba(255,255,255,.3)}
-.vol input::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--text);margin-top:-4.5px;border:none}
-.vol input::-moz-range-track{height:3px;border-radius:2px;background:rgba(255,255,255,.3)}
+.vol input::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
+/* (4 - 12) / 2 — the thumb straddles the rail instead of hanging off it */
+.vol input::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--text);margin-top:-4px;border:none}
+.vol input::-moz-range-track{height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
 .vol input::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--text)}
 
 /* mobile bottom nav */
 .nav{display:none;flex:none;background:var(--surface);height:var(--nav-h);padding-bottom:env(safe-area-inset-bottom)}
-.nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--text-3);font-size:10px}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--text-3);font-size:10px}
 .nav button svg{width:22px;height:22px;fill:currentColor}
 .nav button[aria-selected="true"]{color:var(--text)}
 
@@ -296,7 +360,7 @@ img{display:block}
 
 /* ============ mobile: one pane at a time, mini player, bottom nav ============ */
 @media(max-width:719px){
-  .content{padding:0 12px 8px;gap:0}
+  .content{padding:0 12px 12px;gap:0}
   .now,.side{flex:1 1 auto}
   .nav{display:flex}
   /* only the pane matching the active tab is mounted */
@@ -316,23 +380,25 @@ img{display:block}
   body:not([data-view="player"]) #bShuffle,
   body:not([data-view="player"]) #bRepeat,
   body:not([data-view="player"]) .pb-right{display:none}
-  body:not([data-view="player"]) .ib.play{width:38px;height:38px}
+  body:not([data-view="player"]) .ib.play{width:40px;height:40px}
 
   /* player view: transport fills a row, the rest wraps onto one row below */
   body[data-view="player"] .bar{
-    height:auto;flex-wrap:wrap;justify-content:center;gap:14px;
-    padding:16px 16px 14px;background:transparent;
+    height:auto;flex-wrap:wrap;justify-content:center;gap:16px;
+    padding:16px;background:transparent;
   }
   /* the reference puts shuffle and repeat on the transport row, so the whole
      bar is one column: times, then a single row of controls */
   body[data-view="player"] .pb-transport{flex:1 0 100%;flex-direction:column-reverse;align-items:center;gap:10px}
   /* inset the scrubber and its readout from the screen edges */
   body[data-view="player"] .track{left:16px;right:16px}
-  body[data-view="player"] .times{width:100%;margin:0;padding:0 16px;justify-content:space-between;font-size:12px}
+  /* the bar's own 16px padding already puts this on the page gutter, the same
+     one the scrubber, the title and the header sit on */
+  body[data-view="player"] .times{width:100%;margin:0;padding:0;justify-content:space-between;font-size:12px}
   body[data-view="player"] .times .sep{display:none}
   body[data-view="player"] .pb-open{display:none}
   body[data-view="player"] .pb-track{display:none}
-  body[data-view="player"] .pb-right{flex:0 0 100%;order:3;gap:26px;justify-content:center}
+  body[data-view="player"] .pb-right{flex:0 0 100%;order:3;gap:24px;justify-content:center}
   body[data-view="player"] .vol{display:none}
   /* five across, as in the app: shuffle, prev, play, next, repeat.
      keeping the ten second steps too would overflow a phone */
@@ -341,12 +407,12 @@ img{display:block}
   body[data-view="player"] .ctrls{gap:16px}
   body[data-view="player"] .ib{width:48px;height:48px}
   body[data-view="player"] .ib svg{width:28px;height:28px}
-  body[data-view="player"] .ib.play{width:66px;height:66px;background:var(--text);color:#030303}
+  body[data-view="player"] .ib.play{width:64px;height:64px;background:var(--text);color:#030303}
   body[data-view="player"] .ib.play:hover{background:#e6e6e6}
-  body[data-view="player"] .ib.play svg{width:34px;height:34px}
+  body[data-view="player"] .ib.play svg{width:32px;height:32px}
   body[data-view="player"] .now{overflow:hidden;justify-content:center}
   /* the app left-aligns the track text on a phone and shows the action pills */
-  body[data-view="player"] .now-meta{text-align:left;padding:18px 2px 4px}
+  body[data-view="player"] .now-meta{text-align:left;padding:16px 4px 8px}
   body[data-view="player"] .chips{justify-content:flex-start}
   body[data-view="player"] .actions{display:flex}
   body[data-view="player"] .art{max-width:100%}
@@ -360,35 +426,53 @@ img{display:block}
 }
 
 /* ============ dialog ============ */
+/* 8px cards inset by 12px of padding put the shell's corner at 20px */
 dialog{
-  border:none;border-radius:var(--r-md);padding:0;color:var(--text);background:var(--surface);
-  width:min(520px,92vw);box-shadow:0 8px 40px rgba(0,0,0,.7);
+  border:none;border-radius:var(--r-lg);padding:0;color:var(--text);background:var(--surface);
+  width:min(520px,92vw);
+  box-shadow:0 2px 4px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.5),0 32px 64px rgba(0,0,0,.4);
 }
-dialog::backdrop{background:rgba(0,0,0,.7)}
-.dlg-head{display:flex;align-items:center;gap:10px;padding:16px 18px 8px;font-size:16px;font-weight:500}
-.dlg-body{padding:8px 18px 18px;display:flex;flex-direction:column;gap:14px;max-height:74vh;overflow:auto}
-.conn{display:flex;align-items:center;gap:10px;padding:10px;border-radius:var(--r-sm);background:#181818}
+dialog::backdrop{background:rgba(0,0,0,.7);animation:veil .24s ease both}
+/* the same 8px lift the toast uses, so both overlays enter the same way */
+dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
+@keyframes lift{from{opacity:0;translate:0 8px;scale:.98}to{opacity:1;translate:0 0;scale:1}}
+@keyframes veil{from{opacity:0}to{opacity:1}}
+.dlg-head{display:flex;align-items:center;gap:12px;padding:12px 12px 8px;font-size:16px;font-weight:500}
+/* a text button's label, not its padding box, is what should line up with the
+   block edge it sits against */
+.dlg-head .txtbtn{margin-right:-12px}
+.top .txtbtn{margin-right:-12px}
+.dlg-body{padding:8px 12px 12px;display:flex;flex-direction:column;gap:16px;max-height:74vh;overflow:auto}
+#connList{display:flex;flex-direction:column;gap:8px}
+.conn{display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--r-md);background:#181818}
 .conn.active{background:var(--surface-2)}
 .conn .txt{flex:1;min-width:0}
 .conn .n{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .conn .u{font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.grid2{display:grid;grid-template-columns:1fr 130px;gap:8px}
+.grid2{display:grid;grid-template-columns:1fr 140px;gap:8px}
 @media(max-width:520px){.grid2{grid-template-columns:1fr}}
-.hint{font-size:12px;color:var(--text-3);line-height:1.55}
-.hint code{background:#181818;padding:1px 5px;border-radius:var(--r-sm);color:var(--text-2)}
+.hint{font-size:12px;color:var(--text-3);line-height:1.55;text-wrap:pretty}
+.hint code{background:#181818;padding:2px 6px;border-radius:var(--r-sm);color:var(--text-2)}
 .pill{
+  display:inline-flex;align-items:center;justify-content:center;min-height:40px;
   background:var(--text);color:#030303;font-size:14px;font-weight:500;
-  padding:9px 16px;border-radius:var(--r-sm);align-self:flex-start;
+  padding:0 16px;border-radius:var(--r-md);align-self:flex-start;
 }
 .pill:hover{background:#e6e6e6}
 .label{font-size:12px;color:var(--text-3);margin-bottom:8px}
 
 .toast{
-  position:fixed;left:50%;bottom:calc(var(--bar-h) + 18px);transform:translateX(-50%);
-  background:#f1f1f1;color:#030303;border-radius:var(--r-sm);padding:11px 16px;font-size:13px;
-  opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:90vw;text-align:center;
+  position:fixed;left:50%;bottom:calc(var(--bar-h) + 16px);transform:translateX(-50%);
+  background:#f1f1f1;color:#030303;border-radius:var(--r-md);padding:12px 16px;font-size:13px;
+  box-shadow:0 2px 4px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.4);
+  /* a small fixed offset: it rises in and settles back rather than sweeping */
+  translate:0 8px;
+  opacity:0;pointer-events:none;
+  transition-property:opacity,translate;transition-duration:.2s;
+  transition-timing-function:cubic-bezier(.2,0,0,1);
+  z-index:99;max-width:90vw;text-align:center;
 }
-.toast.show{opacity:1}
+.toast.show{opacity:1;translate:0 0}
 .toast.bad{background:#ff0033;color:#fff}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -761,7 +845,22 @@ async function act(fn, okMsg) {
   } catch (e) { handleErr(e); }
 }
 
-/* ---------------- render ---------------- */
+/* ---------------- render ----------------
+   Restarting a CSS animation needs the class removed, a reflow read, then the
+   class back; setting a class that is already there does nothing. renderSong
+   also runs when only the artwork arrives, so the track it last played for is
+   remembered rather than animating on every call. */
+let animatedFor = null;
+function animateSwap(videoId) {
+  if (!videoId || videoId === animatedFor) return;
+  animatedFor = videoId;
+  for (const node of [document.querySelector('.now-meta'), $('art')]) {
+    node.classList.remove('swap');
+    void node.offsetWidth;
+    node.classList.add('swap');
+  }
+}
+
 function renderSong() {
   const s = state.song;
   if (!s) {
@@ -773,6 +872,7 @@ function renderSong() {
     $('art').src = BLANK; $('barArt').src = BLANK;
     $('barTitle').textContent = msg; $('barSub').textContent = '';
     applyTheme(null);
+    animatedFor = null;
     return;
   }
   const year = s.uploadDate && !isNaN(new Date(s.uploadDate))
@@ -813,6 +913,7 @@ function renderSong() {
     a.target = '_blank'; a.rel = 'noopener';
     c.appendChild(a); chips.appendChild(c);
   }
+  animateSwap(s.videoId);
 }
 
 /* The player reports whole seconds, so a poll usually lands slightly behind the
@@ -1066,7 +1167,10 @@ const MAX_DRIFT = 10;   // seconds of length difference we still trust for sync
 /* LRC stamps mark where a line starts being sung, but reading it needs a beat
    of lead time, and the reported position lags the audio slightly too */
 const LYRIC_LEAD = 0.5;
-const LYRIC_WINDOW = 2; // lines kept either side of the active one, so five in view
+/* lines kept either side of the active one, so thirteen in view; the outer ones
+   are blurred and nearly transparent, which is what lets the window be this wide
+   without competing with the line being sung */
+const LYRIC_WINDOW = 6;
 
 const primaryArtist = (a) =>
   (a || '').split(/,|&|\bfeat\.?\b|\bft\.?\b|\bwith\b/i)[0].trim();
@@ -1113,7 +1217,6 @@ function pickBest(list, song) {
     synced: isSynced,
     lines: isSynced ? parseLRC(best.syncedLyrics) : null,
     plain: best.plainLyrics || '',
-    source: 'LRCLIB',
     note: (isSynced && drift > MAX_DRIFT) ? `timing may be off, matched a ${mmss(best.duration)} version` : ''
   };
 }
@@ -1171,7 +1274,7 @@ async function fetchLyrics(song) {
   try {
     const j = await getJSON(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
     if (j && j.lyrics && j.lyrics.trim()) {
-      return { synced: false, lines: null, plain: j.lyrics.trim(), source: 'lyrics.ovh', note: '' };
+      return { synced: false, lines: null, plain: j.lyrics.trim(), note: '' };
     }
   } catch {}
 
@@ -1215,10 +1318,10 @@ async function loadLyrics(force) {
 }
 
 function renderLyrics(res) {
-  const head = el('div', 'lyr-head');
-  head.appendChild(Object.assign(el('span', 'lyr-badge'), { textContent: res.synced ? 'Synced' : 'Plain' }));
-  head.appendChild(el('span', null, res.source));
-  if (res.note) head.appendChild(el('span', null, '· ' + res.note));
+  /* Whether the lines are timed, and which service served them, is obvious from
+     the lyrics themselves. Only a drift warning says something the page cannot
+     show, so that is the only thing that still gets a header. */
+  const head = res.note ? el('div', 'lyr-head', res.note) : null;
   const wrap = el('div', 'lyrics ' + (res.synced ? 'synced' : 'plain'));
 
   if (res.synced) {
@@ -1241,13 +1344,12 @@ function renderLyrics(res) {
   }
   lyricWrap = res.synced ? wrap : null;
   $('paneLyrics').classList.toggle('windowed', res.synced);
+  let body = wrap;
   if (res.synced) {
-    const viewport = el('div', 'lyr-viewport');
-    viewport.appendChild(wrap);
-    $('lyricsBody').replaceChildren(head, viewport);
-  } else {
-    $('lyricsBody').replaceChildren(head, wrap);
+    body = el('div', 'lyr-viewport');
+    body.appendChild(wrap);
   }
+  $('lyricsBody').replaceChildren(...(head ? [head, body] : [body]));
   lyricIdx = -1;
   $('paneLyrics').scrollTop = 0;
   /* offsetTop is only meaningful once the browser has laid the list out, and by
@@ -1273,8 +1375,12 @@ function focusLyric(i) {
   if (!lyricNodes.length || !lyricWrap) return;
   for (let k = 0; k < lyricNodes.length; k++) {
     const n = lyricNodes[k];
+    const d = Math.abs(k - Math.max(0, i));
     n.classList.toggle('on', k === i);
-    n.classList.toggle('near', k !== i && Math.abs(k - Math.max(0, i)) <= LYRIC_WINDOW);
+    n.classList.toggle('near', k !== i && d <= LYRIC_WINDOW);
+    /* the stylesheet reads this to work out how far out of focus the line is;
+       only worth setting on lines that are actually drawn */
+    if (d <= LYRIC_WINDOW) n.style.setProperty('--d', d);
   }
   const node = lyricNodes[Math.max(0, i)];
   if (!node) return;
