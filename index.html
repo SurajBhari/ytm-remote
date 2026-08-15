@@ -552,6 +552,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
 </dialog>
 
 <div class="toast" id="toast"></div>
+<!-- holds audio focus so the OS will show media controls for this page -->
+<audio id="hold" loop playsinline preload="auto"></audio>
 
 <script>
 'use strict';
@@ -730,9 +732,17 @@ const state = {
   volume: 0, muted: false, shuffle: false, repeat: 'NONE', like: null
 };
 let scrubbing = false;
-/* the socket is the only trustworthy source for volume (see pollAux) */
-let volumeFromSocket = false;
 let volDragging = false;
+
+/* GET and POST /volume speak different scales. The player reports a perceptual
+   value but accepts a raw one, so echoing a reading straight back collapses the
+   level — measured 60 then 29 then 8 then 1 on repeat. The slider therefore
+   holds a command value we own: seeded once from the player through the inverse
+   of its curve, and never overwritten by a later reading. */
+const VOL_CURVE = 2.5;
+const toCommand = (reported) =>
+  Math.round(100 * Math.pow(Math.max(0, Math.min(100, reported || 0)) / 100, 1 / VOL_CURVE));
+let volumeSeeded = false;
 
 function lamp(cls, text) { $('lamp').className = 'lamp ' + cls; $('lampText').textContent = text; }
 
@@ -863,6 +873,7 @@ function renderTransport() {
     ? 'M4 9h3l4-4v14l-4-4H4zm13.3 6.9-1.4-1.4L17.5 13l-1.6-1.5 1.4-1.4 1.6 1.5 1.6-1.5 1.4 1.4L20.3 13l1.6 1.5-1.4 1.4-1.6-1.5z'
     : 'M4 9h3l4-4v14l-4-4H4zm11.5 3a3.5 3.5 0 0 0-2-3.2v6.4a3.5 3.5 0 0 0 2-3.2zM17 6.4a6 6 0 0 1 0 11.2v-2.2a4 4 0 0 0 0-6.8z');
   if (!volDragging && document.activeElement !== $('vol')) $('vol').value = state.volume;
+  updateMediaSession();
 }
 
 /* ---------------- polling ---------------- */
@@ -904,12 +915,9 @@ async function pollAux() {
       api.get('/api/v1/repeat-mode').catch(() => null)
     ]);
     if (like) state.like = like.state;
-    /* GET /volume reports state:0 regardless of the real level, while the socket
-       reports it correctly, so the socket wins wherever it is connected. Polling
-       only fills in before the first push, and never while the slider is held. */
-    if (vol && !volumeFromSocket && !volDragging) {
-      state.volume = Math.round(vol.state ?? 0);
+    if (vol) {
       state.muted = !!vol.isMuted;
+      if (!volumeSeeded && !volDragging) { state.volume = toCommand(vol.state); volumeSeeded = true; }
     }
     if (sh) state.shuffle = !!sh.state;
     if (rep) state.repeat = rep.mode || 'NONE';
@@ -933,8 +941,11 @@ function openSocket() {
     if (m.type === 'PLAYER_INFO') {
       if (typeof m.isPlaying === 'boolean') { bankTime(); state.paused = !m.isPlaying; }
       if (typeof m.position === 'number') applyPosition(m.position, false);
-      if (typeof m.volume === 'number' && !volDragging) { state.volume = Math.round(m.volume); volumeFromSocket = true; }
-      if (typeof m.muted === 'boolean') { state.muted = m.muted; volumeFromSocket = true; }
+      if (typeof m.volume === 'number' && !volumeSeeded && !volDragging) {
+        state.volume = toCommand(m.volume);
+        volumeSeeded = true;
+      }
+      if (typeof m.muted === 'boolean') state.muted = m.muted;
       if (typeof m.shuffle === 'boolean') state.shuffle = m.shuffle;
       if (m.repeat) state.repeat = m.repeat;
       /* the socket carries the whole track, including artwork that GET /song
@@ -1398,14 +1409,32 @@ const volEl = $('vol');
 volEl.addEventListener('pointerdown', () => { volDragging = true; });
 volEl.addEventListener('input', (e) => { volDragging = true; state.volume = +e.target.value; renderTransport(); });
 volEl.addEventListener('change', (e) => {
-  const v = +e.target.value;
-  state.volume = v;
-  volumeFromSocket = true;          // our own set is authoritative until the socket says otherwise
+  state.volume = +e.target.value;
+  volumeSeeded = true;
   volDragging = false;
-  act(() => api.post('/api/v1/volume', { volume: v }));
+  act(() => api.post('/api/v1/volume', { volume: state.volume }));
 });
 volEl.addEventListener('pointerup', () => { volDragging = false; });
 volEl.addEventListener('blur', () => { volDragging = false; });
+
+/* wheel over the volume group nudges it; the send is deferred so a fast scroll
+   is one request rather than one per notch */
+let volWheelTimer;
+document.querySelector('.vol').addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const next = Math.max(0, Math.min(100, state.volume + (e.deltaY < 0 ? 5 : -5)));
+  if (next === state.volume) return;
+  state.volume = next;
+  volumeSeeded = true;
+  volDragging = true;            // keep readings off it while the wheel is moving
+  volEl.value = next;            // renderTransport skips the slider while dragging
+  renderTransport();
+  clearTimeout(volWheelTimer);
+  volWheelTimer = setTimeout(() => {
+    volDragging = false;
+    act(() => api.post('/api/v1/volume', { volume: state.volume }));
+  }, 180);
+}, { passive: false });
 
 /* seek */
 const track = $('track');
@@ -1601,12 +1630,91 @@ $('bAddConn').onclick = async () => {
   connect();
 };
 
+/* ---------------- OS media controls ----------------
+   Phones and desktops only surface a media notification for a page that is
+   itself playing audio, so a silent loop holds the audio focus while the real
+   playback happens on the desktop. Autoplay rules mean it can only start from
+   a user gesture, so the first tap on the page arms it. */
+function silentLoopUrl(seconds = 0.5, rate = 8000) {
+  const n = rate * seconds;
+  const buf = new ArrayBuffer(44 + n);
+  const v = new DataView(buf);
+  const tag = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  tag(0, 'RIFF'); v.setUint32(4, 36 + n, true); tag(8, 'WAVEfmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate, true);
+  v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  tag(36, 'data'); v.setUint32(40, n, true);
+  new Uint8Array(buf, 44).fill(128);      // 0x80 is silence for 8-bit PCM
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+
+const hold = $('hold');
+let mediaArmed = false;
+
+function armMediaSession() {
+  if (mediaArmed || !('mediaSession' in navigator)) return;
+  mediaArmed = true;
+  hold.src = silentLoopUrl();
+  hold.volume = 1;                        // the samples are silent, not the element
+  hold.play().catch(() => { mediaArmed = false; });
+
+  const ms = navigator.mediaSession;
+  const on = (name, fn) => { try { ms.setActionHandler(name, fn); } catch {} };
+  on('play', () => act(() => api.post('/api/v1/play')));
+  on('pause', () => act(() => api.post('/api/v1/pause')));
+  on('previoustrack', () => act(() => api.post('/api/v1/previous')));
+  on('nexttrack', () => act(() => api.post('/api/v1/next')));
+  on('seekbackward', (d) => act(() => api.post('/api/v1/go-back', { seconds: d.seekOffset || store.data.seekStep })));
+  on('seekforward', (d) => act(() => api.post('/api/v1/go-forward', { seconds: d.seekOffset || store.data.seekStep })));
+  on('seekto', (d) => {
+    if (typeof d.seekTime !== 'number') return;
+    state.elapsed = d.seekTime; state.at = performance.now(); renderProgress();
+    act(() => api.post('/api/v1/seek-to', { seconds: Math.round(d.seekTime) }));
+  });
+  updateMediaSession();
+}
+/* the browser may stop the loop when the tab is backgrounded; bring it back so
+   the notification does not vanish mid-track */
+hold.addEventListener('pause', () => { if (mediaArmed) hold.play().catch(() => {}); });
+addEventListener('pointerdown', armMediaSession, { once: true });
+addEventListener('keydown', armMediaSession, { once: true });
+
+let mediaTrack = null;
+function updateMediaSession() {
+  if (!mediaArmed || !('mediaSession' in navigator)) return;
+  const ms = navigator.mediaSession;
+  const s = state.song;
+  if (s && s.videoId !== mediaTrack) {
+    mediaTrack = s.videoId;
+    const art = safeUrl(s.imageSrc);
+    try {
+      ms.metadata = new MediaMetadata({
+        title: s.title || 'Unknown',
+        artist: s.artist || '',
+        album: s.album || '',
+        artwork: art ? [{ src: art, sizes: '544x544', type: 'image/jpeg' }] : []
+      });
+    } catch {}
+  }
+  ms.playbackState = state.paused ? 'paused' : 'playing';
+  if (state.duration) {
+    try {
+      ms.setPositionState({
+        duration: state.duration,
+        position: Math.min(currentElapsed(), state.duration),
+        playbackRate: 1
+      });
+    } catch {}
+  }
+}
+
 /* ---------------- boot ---------------- */
 let songTimer, auxTimer, queueTimer;
 function connect() {
   clearInterval(songTimer); clearInterval(auxTimer); clearInterval(queueTimer);
   connected = false;
-  volumeFromSocket = false;
+  volumeSeeded = false;
   if (!active()) {
     lamp('', 'Not connected');
     state.song = null; renderSong(); renderProgress(); renderTransport();

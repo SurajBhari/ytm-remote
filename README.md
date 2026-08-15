@@ -34,6 +34,14 @@ beside the artwork.
 phone or a spare monitor. It follows Esc and F11 too, and hides itself on browsers with no
 Fullscreen API (iOS Safari).
 
+**System media controls** — the current track appears in your phone's notification shade and
+on the lock screen, so you can skip and pause without opening the page. An OS only offers
+that to a page playing audio, so a silent loop holds the audio focus; browsers require a
+gesture to start audio, so it arms on your first tap. Android Chrome is the reliable case,
+iOS Safari is stricter.
+
+Scrolling over the volume control nudges it.
+
 **Queue** — the full queue with the current track highlighted; click to jump to a track, reorder it, remove it, or clear the queue. A separate tab shows what's coming up next.
 
 **Search** — search the YouTube Music catalogue and drop any result into the queue. You can also paste a raw video ID.
@@ -63,14 +71,15 @@ The page is served over HTTPS from GitHub Pages but calls `http://localhost`. Br
 
 Things worth knowing if you build against the same API:
 
-- `GET /api/v1/volume` reports `state: 0` no matter the real level. The WebSocket reports it
-  correctly, so treat the socket as the source of truth and use the REST value only as a
-  fallback before the first push arrives. `GET /api/v1/repeat-mode` likewise returns `null`
-  rather than the real mode.
-- On some setups `POST` to `volume`, `toggle-mute`, `switch-repeat` and `shuffle` all return
-  `204` without changing anything, while `play`/`pause`, `next`/`previous`, `seek-to` and the
-  queue endpoints work normally. If those four buttons appear dead, it is the desktop plugin,
-  not this page — check that the YouTube Music window is open and not minimised.
+- **`GET` and `POST /api/v1/volume` use different scales.** The player reports a perceptual
+  value but accepts a raw one, so sending a reading straight back collapses the level —
+  measured 60 → 29 → 8 → 1 on repeat. Treat the slider as a command value you own rather
+  than a readback. This page seeds it once from the player through the inverse of the curve
+  (roughly `raw = 100 · (reported/100)^0.4`) and never overwrites it afterwards.
+- Nothing applies while the player is idle. `volume`, `toggle-mute`, `switch-repeat` and
+  `shuffle` all return `204` and change nothing until a track is actually playing, and
+  `GET /volume` and `GET /repeat-mode` report `0` and `null` until then too. If those
+  controls look dead, start a track first.
 - The socket only pushes on track and playback changes, not on volume, mute, repeat or
   shuffle. To read true state after one of those, open a fresh socket: every connection
   starts with a current `PLAYER_INFO`.
