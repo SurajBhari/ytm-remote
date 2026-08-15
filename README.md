@@ -2,7 +2,7 @@
 
 A browser remote control for the [YouTube Music desktop app](https://github.com/th-ch/youtube-music). One HTML file, no build step, no backend — it talks straight to the app's **API Server** plugin running on your own machine.
 
-**→ [Open the remote](https://surajbhari.github.io/ytm-remote/)**
+**→ [Open the remote](https://surajbhari.com/ytm-remote/)**
 
 Your connection details stay in `localStorage` in your browser. Nothing is sent anywhere except to the player address you enter.
 
