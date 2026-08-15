@@ -55,7 +55,15 @@ Things worth knowing if you build against the same API:
 
 - `GET /api/v1/volume` reports `state: 0` no matter the real level. The WebSocket reports it
   correctly, so treat the socket as the source of truth and use the REST value only as a
-  fallback before the first push arrives.
+  fallback before the first push arrives. `GET /api/v1/repeat-mode` likewise returns `null`
+  rather than the real mode.
+- On some setups `POST` to `volume`, `toggle-mute`, `switch-repeat` and `shuffle` all return
+  `204` without changing anything, while `play`/`pause`, `next`/`previous`, `seek-to` and the
+  queue endpoints work normally. If those four buttons appear dead, it is the desktop plugin,
+  not this page — check that the YouTube Music window is open and not minimised.
+- The socket only pushes on track and playback changes, not on volume, mute, repeat or
+  shuffle. To read true state after one of those, open a fresh socket: every connection
+  starts with a current `PLAYER_INFO`.
 - `POST /api/v1/queue` with `insertPosition: INSERT_AT_END` returns `204` but does not change an autoplay/radio queue. `INSERT_AFTER_CURRENT_VIDEO` works, so every add here uses it.
 - `GET /api/v1/song` sometimes omits `imageSrc`, while the WebSocket's `PLAYER_INFO.song`
   includes it. The artwork drives the page colour here, so the socket payload fills the gap.
