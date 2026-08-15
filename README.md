@@ -28,7 +28,11 @@ beside the artwork.
 
 **Rating** — like and dislike, showing the current state.
 
-**Modes** — shuffle, repeat (off / all / one), volume, mute, and fullscreen on the desktop player.
+**Modes** — shuffle, repeat (off / all / one), volume, and mute.
+
+**Fullscreen** — the button puts *this page* into fullscreen, which is what you want on a
+phone or a spare monitor. It follows Esc and F11 too, and hides itself on browsers with no
+Fullscreen API (iOS Safari).
 
 **Queue** — the full queue with the current track highlighted; click to jump to a track, reorder it, remove it, or clear the queue. A separate tab shows what's coming up next.
 
@@ -41,7 +45,7 @@ beside the artwork.
 | `Space` | Play / pause | `M` | Mute |
 | `←` `→` | Seek ∓10s | `S` | Shuffle |
 | `N` / `P` | Next / previous | `R` | Repeat |
-| `L` | Like | `F` | Fullscreen |
+| `L` | Like | `F` | Fullscreen (this page) |
 
 ## Browser support
 

@@ -56,6 +56,8 @@ button,input{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:none;padding:0}
 :focus-visible{outline:2px solid var(--text);outline-offset:2px}
 img{display:block}
+/* display on .ib/.tab would otherwise beat the UA rule for [hidden] */
+[hidden]{display:none!important}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* ============ shell ============ */
@@ -409,8 +411,8 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
         <svg viewBox="0 0 24 24"><path id="repeatIcon" d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg></button>
       <button class="ib small" id="bShuffle" aria-label="Shuffle" title="Shuffle (S)">
         <svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4V8h-2.2l-2.3 3-1.3-1.7L13.6 6H17zM3 6h4.2l6.5 9H17v-3l4 4-4 4v-3h-4.3L6.2 8H3zM3 16h4.4l1.7-2.3 1.3 1.7L8.2 18H3z"/></svg></button>
-      <button class="ib small" id="bFull" aria-label="Fullscreen on the player" title="Fullscreen (F)">
-        <svg viewBox="0 0 24 24"><path d="M4 9V4h5v2H6v3zm11-5h5v5h-2V6h-3zM4 15h2v3h3v2H4zm14 3v-3h2v5h-5v-2z"/></svg></button>
+      <button class="ib small" id="bFull" aria-label="Enter fullscreen" aria-pressed="false" title="Fullscreen (F)">
+        <svg viewBox="0 0 24 24"><path id="fullIcon" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
     </div>
   </footer>
 
@@ -610,7 +612,7 @@ function themeFromArt(url) {
 let connected = false;
 const state = {
   song: null, paused: true, duration: 0, elapsed: 0, at: 0,
-  volume: 0, muted: false, shuffle: false, repeat: 'NONE', full: false, like: null
+  volume: 0, muted: false, shuffle: false, repeat: 'NONE', like: null
 };
 let scrubbing = false;
 /* the socket is the only trustworthy source for volume (see pollAux) */
@@ -702,7 +704,6 @@ function renderTransport() {
   $('bLike').classList.toggle('on', state.like === 'LIKE');
   $('bDislike').classList.toggle('on', state.like === 'DISLIKE');
   $('bShuffle').classList.toggle('on', !!state.shuffle);
-  $('bFull').classList.toggle('on', !!state.full);
   const mode = state.repeat || 'NONE';
   $('bRepeat').classList.toggle('on', mode !== 'NONE');
   $('bRepeat').setAttribute('aria-label', mode === 'ONE' ? 'Repeat one' : mode === 'ALL' ? 'Repeat all' : 'Repeat off');
@@ -745,12 +746,11 @@ async function pollSong() {
 async function pollAux() {
   if (!active()) return;
   try {
-    const [like, vol, sh, rep, full] = await Promise.all([
+    const [like, vol, sh, rep] = await Promise.all([
       api.get('/api/v1/like-state').catch(() => null),
       api.get('/api/v1/volume').catch(() => null),
       api.get('/api/v1/shuffle').catch(() => null),
-      api.get('/api/v1/repeat-mode').catch(() => null),
-      api.get('/api/v1/fullscreen').catch(() => null)
+      api.get('/api/v1/repeat-mode').catch(() => null)
     ]);
     if (like) state.like = like.state;
     /* GET /volume reports state:0 regardless of the real level, while the socket
@@ -762,7 +762,6 @@ async function pollAux() {
     }
     if (sh) state.shuffle = !!sh.state;
     if (rep) state.repeat = rep.mode || 'NONE';
-    if (full) state.full = !!full.state;
     renderTransport();
   } catch (e) { handleErr(e); }
 }
@@ -989,7 +988,35 @@ $('bLike').onclick = () => act(() => api.post('/api/v1/like'));
 $('bDislike').onclick = () => act(() => api.post('/api/v1/dislike'));
 $('bShuffle').onclick = () => act(() => api.post('/api/v1/shuffle'), 'Queue shuffled').then(() => setTimeout(() => { if (tab === 'queue') loadQueue(true); }, 500));
 $('bRepeat').onclick = () => act(() => api.post('/api/v1/switch-repeat', { iteration: 1 }));
-$('bFull').onclick = () => act(() => api.post('/api/v1/fullscreen', { state: !state.full }));
+/* fullscreen applies to this page, not the desktop player */
+const FULL_ENTER = 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z';
+const FULL_EXIT  = 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z';
+const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+
+function renderFullscreen() {
+  const on = fsOn();
+  $('fullIcon').setAttribute('d', on ? FULL_EXIT : FULL_ENTER);
+  $('bFull').setAttribute('aria-label', on ? 'Exit fullscreen' : 'Enter fullscreen');
+  $('bFull').setAttribute('aria-pressed', String(on));
+  $('bFull').classList.toggle('on', on);
+}
+
+$('bFull').onclick = async () => {
+  const el = document.documentElement;
+  try {
+    if (fsOn()) await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else await (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  } catch {
+    toast('This browser would not switch to fullscreen', true);
+  }
+};
+/* Esc and F11 change it without going through the button, so follow the event */
+document.addEventListener('fullscreenchange', renderFullscreen);
+document.addEventListener('webkitfullscreenchange', renderFullscreen);
+/* iOS Safari has no Fullscreen API outside video, so do not offer a dead control */
+if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) {
+  $('bFull').hidden = true;
+}
 $('bMute').onclick = () => act(() => api.post('/api/v1/toggle-mute'));
 const volEl = $('vol');
 volEl.addEventListener('pointerdown', () => { volDragging = true; });
@@ -1189,7 +1216,7 @@ document.addEventListener('error', (e) => {
   if (t.id === 'art' || t.id === 'barArt') t.src = BLANK; else t.remove();
 }, true);
 
-renderSong(); renderProgress(); renderTransport();
+renderSong(); renderProgress(); renderTransport(); renderFullscreen();
 if (!store.data.connections.length) { renderConns(); dlg.showModal(); }
 else connect();
 </script>
