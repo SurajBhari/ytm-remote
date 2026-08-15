@@ -93,6 +93,9 @@ img{display:block}
 .now-meta{padding:18px 2px 8px;text-align:center}
 .now-title{font-size:clamp(19px,2.4vw,26px);font-weight:700;line-height:1.25;margin:0;overflow-wrap:anywhere}
 .now-artist{color:var(--text-2);font-size:15px;margin-top:5px;overflow-wrap:anywhere}
+/* the artist reads as text until you reach for it, the way the app behaves */
+.now-artist a{color:inherit;text-decoration:none;border-radius:3px}
+.now-artist a:hover{color:var(--text);text-decoration:underline}
 .now-album{color:var(--text-3);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
 .chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:12px}
 .chip{
@@ -748,7 +751,17 @@ function renderSong() {
   const year = s.uploadDate && !isNaN(new Date(s.uploadDate))
     ? String(new Date(s.uploadDate).getFullYear()) : '';
   $('title').textContent = s.title || 'Untitled';
-  $('artist').textContent = s.artist || '';
+  /* artistUrl is absent from the documented schema but the player does send it */
+  if (s.artist && s.artistUrl) {
+    const a = el('a', null, s.artist);
+    a.href = s.artistUrl;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.title = 'Open ' + s.artist + ' on YouTube Music';
+    $('artist').replaceChildren(a);
+  } else {
+    $('artist').textContent = s.artist || '';
+  }
   $('album').textContent = s.album || '';
   $('barTitle').textContent = s.title || 'Untitled';
   /* artist • album • year, the way the reference bar reads */
