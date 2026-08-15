@@ -15,6 +15,11 @@ Your connection details stay in `localStorage` in your browser. Nothing is sent 
 
 The token you get back is saved locally, so you only do this once per device. You can save several players and switch between them.
 
+The interface follows YouTube Music's own layout — a persistent player bar, a queue pane,
+and a page that takes its colour from the current album art. On a phone it collapses to a
+full-screen player with a mini bar and bottom tabs; on a tablet or desktop the queue sits
+beside the artwork.
+
 ## What it does
 
 **Playback** — play/pause, previous, next, seek by dragging the counter bar, jump back and forward 10 seconds.
@@ -46,12 +51,21 @@ The page is served over HTTPS from GitHub Pages but calls `http://localhost`. Br
 
 ## Notes on the API
 
-Two things worth knowing if you build against the same API:
+Things worth knowing if you build against the same API:
 
+- `GET /api/v1/volume` reports `state: 0` no matter the real level. The WebSocket reports it
+  correctly, so treat the socket as the source of truth and use the REST value only as a
+  fallback before the first push arrives.
 - `POST /api/v1/queue` with `insertPosition: INSERT_AT_END` returns `204` but does not change an autoplay/radio queue. `INSERT_AFTER_CURRENT_VIDEO` works, so every add here uses it.
+- `GET /api/v1/song` sometimes omits `imageSrc`, while the WebSocket's `PLAYER_INFO.song`
+  includes it. The artwork drives the page colour here, so the socket payload fills the gap.
 - `GET /api/v1/queue` returns a large payload (~900 KB for 50 tracks), so the queue is fetched on demand rather than on the polling loop.
 
 State comes from polling `/api/v1/song` once a second, with the plugin's WebSocket layered on top for instant response to play/pause, volume, shuffle and repeat changes.
+
+The page colour is sampled from the artwork on a canvas. That needs a CORS-clean image, so
+the sampler requests the cover under its own cache key — the visible `<img>` is loaded
+normally and never depends on CORS, so artwork still shows even if sampling fails.
 
 ## Licence
 
