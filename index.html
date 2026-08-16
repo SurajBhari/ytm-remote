@@ -225,7 +225,9 @@ img{display:block}
   color:var(--text-2);font-size:13px;font-weight:500;padding:0 12px;border-radius:var(--r-md);
 }
 .txtbtn:hover{color:var(--text);background:var(--hover)}
+.txtbtn.on{color:var(--accent)}
 .count{color:var(--text-3);font-size:12px;margin-left:auto}
+.sleep-grid{display:flex;flex-wrap:wrap;gap:8px}
 
 /* ============ rows ============ */
 /* 4px artwork sitting in 8px of padding wants a 12px outer corner */
@@ -250,6 +252,16 @@ img{display:block}
 .row .acts button::after{content:'';position:absolute;inset:-4px}
 .row .acts button:hover{background:var(--hover);color:var(--text)}
 .row .acts svg{width:18px;height:18px;fill:currentColor}
+/* the row being carried is lifted off the list; the rest slide under it */
+.row.dragging{
+  position:relative;z-index:3;background:var(--surface-2);cursor:grabbing;
+  box-shadow:0 2px 4px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.5);
+}
+.reordering{user-select:none}
+.reordering .row{transition:transform .16s cubic-bezier(.2,0,0,1)}
+.reordering .row.dragging{transition:none}
+.reordering .row:hover{background:none}
+.reordering .row.dragging:hover{background:var(--surface-2)}
 .row.playing .t{color:var(--accent);font-weight:500}
 .row.playing .idx{color:var(--accent)}
 .bars{display:flex;align-items:flex-end;gap:2px;width:24px;height:14px;justify-content:center}
@@ -316,6 +328,12 @@ img{display:block}
   font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums;
 }
 .times .sep{opacity:.6}
+/* the readout is 12px, so the target is grown around it rather than by making
+   the text bigger. only the elapsed span sits under the overhang, and that is
+   not interactive, so no two hit areas overlap */
+.timebtn{position:relative;color:inherit;font:inherit;font-variant-numeric:tabular-nums}
+.timebtn::after{content:'';position:absolute;inset:-12px -8px}
+.timebtn:hover{color:var(--text)}
 
 /* current track, centred */
 .pb-track{display:flex;align-items:center;gap:8px;flex:0 1 auto;min-width:0}
@@ -381,6 +399,9 @@ img{display:block}
 /* ============ mobile: one pane at a time, mini player, bottom nav ============ */
 @media(max-width:719px){
   .content{padding:0 12px 12px;gap:0}
+  /* the header carries two text buttons here, so the status gives up its words
+     and keeps only the dot. hidden rather than removed, so it is still read out */
+  #lampText{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   .now,.side{flex:1 1 auto}
   .nav{display:flex}
   /* only the pane matching the active tab is mounted */
@@ -504,6 +525,19 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
   z-index:99;max-width:90vw;text-align:center;
 }
 .toast.show{opacity:1;translate:0 0}
+.toast{pointer-events:none}
+.toast.show{pointer-events:auto}
+.toast-act{
+  margin-left:12px;font-weight:700;font-size:13px;color:inherit;
+  text-decoration:underline;text-underline-offset:3px;
+}
+.toast.bad .toast-act{color:#fff}
+
+/* nothing is reachable, so nothing pretends to be */
+body.offline .ctrls,body.offline .pb-right,body.offline .pb-track,
+body.offline .art-btn,body.offline .track{opacity:.45}
+body.offline .track{pointer-events:none}
+body.offline .art-btn::after{content:none}
 .toast.bad{background:#ff0033;color:#fff}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -515,6 +549,7 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
     <span class="brand">YTM Remote</span>
     <span class="lamp" id="lamp"><i aria-hidden="true"></i><span id="lampText" role="status" aria-live="polite">Not connected</span></span>
     <span class="grow"></span>
+    <button class="txtbtn" id="btnSleep">Sleep</button>
     <button class="txtbtn" id="btnConn">Connections</button>
   </header>
 
@@ -587,7 +622,7 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
       <div class="times">
         <span id="elapsed">0:00</span>
         <span class="sep" aria-hidden="true">/</span>
-        <span id="duration">0:00</span>
+        <button class="timebtn" id="duration" title="Show time remaining">0:00</button>
       </div>
     </div>
 
@@ -659,6 +694,14 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
   </div>
 </dialog>
 
+<dialog id="sleepDlg">
+  <div class="dlg-head">Sleep timer<span style="flex:1"></span><button class="txtbtn" id="sleepClose">Close</button></div>
+  <div class="dlg-body">
+    <div class="sleep-grid" id="sleepGrid"></div>
+    <div class="hint">Pauses the player when the time is up. It is not remembered if you reload this page.</div>
+  </div>
+</dialog>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <!-- holds audio focus so the OS will show media controls for this page -->
 <audio id="hold" loop playsinline preload="auto"></audio>
@@ -669,7 +712,7 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10 },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
@@ -742,12 +785,20 @@ const svg = (d, size) => {
 };
 
 let toastTimer;
-function toast(msg, bad) {
+/* `action` turns the toast into something you can act on rather than a notice
+   that tells you to go and find the fix yourself. It is given longer to live,
+   since it now has to be read and reached. */
+function toast(msg, bad, action) {
   const t = $('toast');
-  t.textContent = msg;
+  t.replaceChildren(document.createTextNode(msg));
+  if (action) {
+    const b = el('button', 'toast-act', action.label);
+    b.onclick = () => { t.className = 'toast'; action.run(); };
+    t.appendChild(b);
+  }
   t.className = 'toast show' + (bad ? ' bad' : '');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, action ? 8000 : 2600);
 }
 
 /* ---------------- theme from album art ----------------
@@ -851,12 +902,50 @@ const toCommand = (reported) =>
   Math.round(100 * Math.pow(Math.max(0, Math.min(100, reported || 0)) / 100, 1 / VOL_CURVE));
 let volumeSeeded = false;
 
-function lamp(cls, text) { $('lamp').className = 'lamp ' + cls; $('lampText').textContent = text; }
+function lamp(cls, text) {
+  $('lamp').className = 'lamp ' + cls;
+  $('lampText').textContent = text;
+  renderConnection();
+}
+
+/* Asking the player for a fresh token, from wherever the rejection surfaced */
+async function reauth() {
+  const c = active();
+  if (!c) return;
+  try {
+    c.token = await api.token(c.url, c.clientId || 'ytm-remote-web');
+    store.save();
+    renderConns();
+    toast('New token stored');
+    connect();
+  } catch (err) { toast(err.message, true); }
+}
+
+/* The polls run every second, so a rejected token used to raise a toast every
+   second. It is worth saying once per connection. */
+let authNoticeShown = false;
 
 function handleErr(e) {
   connected = false;
-  if (e && e.auth) { lamp('err', 'Token rejected'); toast('The player rejected the token. Reconnect from Connections.', true); }
-  else lamp('err', 'Unreachable');
+  if (e && e.auth) {
+    lamp('err', 'Token rejected');
+    if (!authNoticeShown) {
+      authNoticeShown = true;
+      toast('The player rejected the token.', true, { label: 'Re-authorise', run: reauth });
+    }
+  } else lamp('err', 'Unreachable');
+}
+
+/* With no player reachable the transport still looked live and every press
+   quietly did nothing. Disabled rather than merely dimmed, so the keyboard and
+   assistive tech are told the same thing the dimming says. */
+const LIVE_CONTROLS = ['bPlay', 'bPrev', 'bNext', 'bLike', 'bDislike', 'bShuffle',
+                       'bRepeat', 'bMute', 'artToggle', 'miniOpen', 'barTitle', 'vol'];
+
+function renderConnection() {
+  const ok = connected && !!active();
+  document.body.classList.toggle('offline', !ok);
+  for (const id of LIVE_CONTROLS) { const n = $(id); if (n) n.disabled = !ok; }
 }
 
 async function act(fn, okMsg) {
@@ -994,7 +1083,9 @@ const currentElapsed = () => {
 function renderProgress() {
   const d = state.duration, e = scrubbing ? state.elapsed : currentElapsed();
   $('elapsed').textContent = mmss(e);
-  $('duration').textContent = mmss(d);
+  const rem = store.data.remaining && d;
+  $('duration').textContent = rem ? '-' + mmss(d - e) : mmss(d);
+  $('duration').title = rem ? 'Show track length' : 'Show time remaining';
   const pct = d ? (e / d) * 100 : 0;
   $('fill').style.width = pct + '%';
   $('knob').style.left = pct + '%';
@@ -1229,6 +1320,64 @@ async function loadQueue(quiet) {
   } finally { queueBusy = false; }
 }
 
+/* Reordering by button moves one place per request, so shifting a track twenty
+   places was twenty round trips. PATCH takes an arbitrary target, so a drag is
+   one. Bound to mouse and pen: a touch drag would need the row to opt out of
+   panning before the gesture began, which would cost the list its scrolling, so
+   touch keeps the up and down buttons. */
+let drag = null, dragEndedAt = 0;
+
+function endDrag(commit) {
+  if (!drag) return;
+  const d = drag; drag = null;
+  for (const r of d.rows) r.style.transform = '';
+  d.row.classList.remove('dragging');
+  $('queueList').classList.remove('reordering');
+  if (!d.moved) return;
+  dragEndedAt = performance.now();          // the row's click is not a play request
+  if (!commit || d.to === undefined || d.to === d.from) return;
+  queueSig = '';                            // the order really did change
+  act(() => api.patch('/api/v1/queue/' + d.from, { toIndex: d.to }))
+    .then(() => setTimeout(() => loadQueue(true), 350));
+}
+
+$('queueList').addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'touch' || e.button !== 0) return;
+  const row = e.target.closest('.row');
+  if (!row || e.target.closest('.acts')) return;
+  const rows = [...$('queueList').children];
+  const from = rows.indexOf(row);
+  if (from < 0) return;
+  drag = { row, rows, from, startY: e.clientY, h: row.getBoundingClientRect().height, moved: false };
+});
+
+addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dy = e.clientY - drag.startY;
+  if (!drag.moved) {
+    if (Math.abs(dy) < 6) return;
+    drag.moved = true;
+    drag.row.classList.add('dragging');
+    $('queueList').classList.add('reordering');
+  }
+  e.preventDefault();
+  drag.row.style.transform = 'translateY(' + dy + 'px)';
+  const to = Math.max(0, Math.min(drag.rows.length - 1, drag.from + Math.round(dy / drag.h)));
+  drag.to = to;
+  /* the rows between here and there step aside by exactly one row's height,
+     which is what shows where the drop will land */
+  for (let i = 0; i < drag.rows.length; i++) {
+    if (i === drag.from) continue;
+    let shift = 0;
+    if (to > drag.from && i > drag.from && i <= to) shift = -drag.h;
+    else if (to < drag.from && i >= to && i < drag.from) shift = drag.h;
+    drag.rows[i].style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+  }
+});
+
+addEventListener('pointerup', () => endDrag(true));
+addEventListener('pointercancel', () => endDrag(false));
+
 const ICON = {
   up: 'M12 8l6 6H6z', down: 'M12 16l-6-6h12z',
   close: 'M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z',
@@ -1260,7 +1409,10 @@ function queueRow(t, i) {
   mk(ICON.close, 'Remove', () => act(() => api.del('/api/v1/queue/' + i), 'Removed').then(() => after(350, () => loadQueue(true))));
   row.appendChild(acts);
 
-  row.onclick = () => act(() => api.patch('/api/v1/queue', { index: i })).then(() => after(500, () => loadQueue(true)));
+  row.onclick = () => {
+    if (performance.now() - dragEndedAt < 300) return;   // that was a reorder, not a pick
+    act(() => api.patch('/api/v1/queue', { index: i })).then(() => after(500, () => loadQueue(true)));
+  };
   return row;
 }
 
@@ -1579,9 +1731,52 @@ $('bPlay').onclick = () => {
   setPaused(!state.paused); renderTransport();
   act(() => api.post('/api/v1/toggle-play'));
 };
-/* the cover is the biggest thing on the page, so it is also the easiest target
-   for the control you reach for most */
-$('artToggle').onclick = () => $('bPlay').click();
+/* The cover is the biggest thing on the page, so it is also the easiest target
+   for the control reached for most.
+   On touch it carries the rest of the transport too: a swipe changes track, and
+   a double tap seeks by the half it landed in — which is where the ten second
+   skip went when its buttons came off the bar. That costs the single tap a
+   short wait to see whether a second one follows, so gestures are bound to
+   touch and pen only; a mouse click stays immediate and the keyboard already
+   covers seeking on a desktop. */
+const artBtn = $('artToggle');
+const SWIPE = 48, DOUBLE_TAP = 300;
+let tapTimer = null, lastTapAt = 0, gestureAt = 0;
+
+artBtn.style.touchAction = 'manipulation';   // no double-tap-to-zoom to fight with
+
+artBtn.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse') return;
+  artBtn._from = { x: e.clientX, y: e.clientY };
+});
+
+artBtn.addEventListener('pointerup', (e) => {
+  const from = artBtn._from;
+  if (e.pointerType === 'mouse' || !from) return;
+  artBtn._from = null;
+  gestureAt = performance.now();            // the click that follows is ours
+  const dx = e.clientX - from.x, dy = e.clientY - from.y;
+
+  if (Math.abs(dx) > SWIPE && Math.abs(dx) > Math.abs(dy)) {
+    clearTimeout(tapTimer); tapTimer = null; lastTapAt = 0;
+    return act(() => api.post(dx > 0 ? '/api/v1/previous' : '/api/v1/next'));
+  }
+  const now = performance.now();
+  if (now - lastTapAt < DOUBLE_TAP) {
+    clearTimeout(tapTimer); tapTimer = null; lastTapAt = 0;
+    const r = artBtn.getBoundingClientRect();
+    return seekBy(e.clientX - r.left < r.width / 2);
+  }
+  lastTapAt = now;
+  tapTimer = setTimeout(() => { tapTimer = null; lastTapAt = 0; $('bPlay').click(); }, DOUBLE_TAP - 40);
+});
+
+artBtn.addEventListener('pointercancel', () => { artBtn._from = null; });
+
+artBtn.onclick = () => {
+  if (performance.now() - gestureAt < 700) return;   // a touch gesture handled it
+  $('bPlay').click();
+};
 $('bPrev').onclick = () => act(() => api.post('/api/v1/previous'));
 $('bNext').onclick = () => act(() => api.post('/api/v1/next'));
 /* no buttons of its own any more; the arrow keys, the scrubber and the OS media
@@ -1606,6 +1801,11 @@ $('bRepeat').onclick = () => {
   state.repeat = REPEAT_CYCLE[state.repeat] || 'ALL';
   renderTransport();
   act(() => api.post('/api/v1/switch-repeat', { iteration: 1 }));
+};
+$('duration').onclick = () => {
+  store.data.remaining = !store.data.remaining;
+  store.save();
+  renderProgress();          // paused, nothing else would repaint it
 };
 /* fullscreen applies to this page, not the desktop player */
 const FULL_ENTER = 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z';
@@ -1652,23 +1852,27 @@ volEl.addEventListener('change', (e) => {
 volEl.addEventListener('pointerup', () => { volDragging = false; });
 volEl.addEventListener('blur', () => { volDragging = false; });
 
-/* wheel over the volume group nudges it; the send is deferred so a fast scroll
-   is one request rather than one per notch */
-let volWheelTimer;
-document.querySelector('.vol').addEventListener('wheel', (e) => {
-  e.preventDefault();
-  const next = Math.max(0, Math.min(100, state.volume + (e.deltaY < 0 ? 5 : -5)));
+/* Shared by the wheel and the arrow keys: the send is deferred so a fast scroll
+   or a held key is one request at the end rather than one per notch. */
+let volSendTimer;
+function nudgeVolume(delta) {
+  const next = Math.max(0, Math.min(100, state.volume + delta));
   if (next === state.volume) return;
   state.volume = next;
   volumeSeeded = true;
-  volDragging = true;            // keep readings off it while the wheel is moving
+  volDragging = true;            // keep readings off it while it is being moved
   volEl.value = next;            // renderTransport skips the slider while dragging
   renderTransport();
-  clearTimeout(volWheelTimer);
-  volWheelTimer = setTimeout(() => {
+  clearTimeout(volSendTimer);
+  volSendTimer = setTimeout(() => {
     volDragging = false;
     act(() => api.post('/api/v1/volume', { volume: state.volume }));
   }, 180);
+}
+
+document.querySelector('.vol').addEventListener('wheel', (e) => {
+  e.preventDefault();
+  nudgeVolume(e.deltaY < 0 ? 5 : -5);
 }, { passive: false });
 
 /* seek */
@@ -1678,7 +1882,7 @@ const posFromEvent = (e) => {
   return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * state.duration;
 };
 track.addEventListener('pointerdown', (e) => {
-  if (!state.duration) return;
+  if (!state.duration || !connected) return;
   scrubbing = true; track.classList.add('live'); track.setPointerCapture(e.pointerId);
   state.elapsed = posFromEvent(e); renderProgress();
 });
@@ -1700,15 +1904,17 @@ track.addEventListener('keydown', (e) => {
 /* ---------------- views and tabs ----------------
    `view` drives the mobile layout (which pane is mounted); `tab` picks the side pane
    on every size. They are kept in step so switching on mobile also switches on desktop. */
-let tab = 'queue';
-let view = 'player';
-
 const TABS = ['queue', 'lyrics', 'search'];
 const VIEWS = ['player', 'queue', 'lyrics', 'search'];
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
+/* the pane you left it on is nearly always the one you want back */
+let tab = TABS.includes(store.data.tab) ? store.data.tab : 'queue';
+let view = VIEWS.includes(store.data.view) ? store.data.view : 'player';
+
 function setTab(name) {
   tab = name;
+  store.data.tab = name; store.save();
   for (const t of TABS) {
     const btn = $('tab' + cap(t));
     btn.setAttribute('aria-selected', String(t === name));
@@ -1726,6 +1932,7 @@ function setTab(name) {
 
 function setView(name) {
   view = name;
+  store.data.view = name; store.save();
   document.body.dataset.view = name;
   for (const v of VIEWS) {
     const btn = $('nav' + cap(v));
@@ -1759,9 +1966,10 @@ function rovingTabs(container, names, choose, idOf) {
 }
 rovingTabs(document.querySelector('.tabs'), TABS, setTab, (t) => 'tab' + cap(t));
 rovingTabs(document.querySelector('.nav'), VIEWS, setView, (v) => 'nav' + cap(v));
-/* the markup ships with the opening selection, so mirror it into the tab order */
-for (const t of TABS) $('tab' + cap(t)).tabIndex = t === tab ? 0 : -1;
-for (const v of VIEWS) $('nav' + cap(v)).tabIndex = v === view ? 0 : -1;
+/* the markup ships with queue and player selected, so put the remembered pane on
+   screen and let these two settle the aria state and the tab order with it */
+setTab(tab);
+setView(view);
 /* The app groups these differently by size: on a phone shuffle and repeat sit
    beside the transport and rating sits in the pills under the title, while at
    desktop width both live out on the right. CSS cannot move a node between
@@ -1822,6 +2030,11 @@ document.addEventListener('keydown', (e) => {
   if (k === 'arrowleft' || k === 'arrowright') {
     e.preventDefault();
     return seekBy(k === 'arrowleft');
+  }
+  /* left and right seek, so up and down are free for the volume */
+  if (k === 'arrowup' || k === 'arrowdown') {
+    e.preventDefault();
+    return nudgeVolume(k === 'arrowup' ? 5 : -5);
   }
   const map = { ' ': 'bPlay', n: 'bNext', p: 'bPrev', m: 'bMute', s: 'bShuffle', r: 'bRepeat', f: 'bFull', l: 'bLike' };
   const id = map[k];
@@ -1991,6 +2204,58 @@ function updateMediaSession() {
   }
 }
 
+/* ---------------- sleep timer ----------------
+   Deliberately not persisted. A timer that survived a reload would be a promise
+   this page cannot keep: close the tab and nothing is left running to pause
+   anything. It lives for as long as the page is open, and says so. */
+const SLEEP_PRESETS = [15, 30, 45, 60, 90];
+let sleepAt = 0, sleepTimer = null, sleepTick = null;
+
+function clearSleep() {
+  clearTimeout(sleepTimer); sleepTimer = null;
+  clearInterval(sleepTick); sleepTick = null;
+  sleepAt = 0;
+}
+
+function renderSleep() {
+  const b = $('btnSleep');
+  if (!sleepAt) { b.textContent = 'Sleep'; b.classList.remove('on'); return; }
+  b.textContent = mmss(Math.max(0, sleepAt - Date.now()) / 1000);
+  b.classList.add('on');
+}
+
+function startSleep(ms, label) {
+  clearSleep();
+  if (!(ms > 0)) { renderSleep(); return toast('Sleep timer off'); }
+  sleepAt = Date.now() + ms;
+  sleepTimer = setTimeout(() => {
+    clearSleep(); renderSleep();
+    act(() => api.post('/api/v1/pause'), 'Paused by the sleep timer');
+  }, ms);
+  sleepTick = setInterval(renderSleep, 1000);
+  renderSleep();
+  toast('Pausing ' + label);
+}
+
+function renderSleepOptions() {
+  const g = $('sleepGrid');
+  g.replaceChildren();
+  const add = (label, fn) => {
+    const b = el('button', 'chip-btn', label);
+    b.onclick = () => { $('sleepDlg').close(); fn(); };
+    g.appendChild(b);
+  };
+  for (const m of SLEEP_PRESETS) add(m + ' min', () => startSleep(m * 60000, 'in ' + m + ' minutes'));
+  if (state.duration) {
+    const left = Math.max(1000, (state.duration - currentElapsed()) * 1000);
+    add('End of track', () => startSleep(left, 'at the end of this track'));
+  }
+  if (sleepAt) add('Cancel', () => startSleep(0));
+}
+
+$('btnSleep').onclick = () => { renderSleepOptions(); $('sleepDlg').showModal(); };
+$('sleepClose').onclick = () => $('sleepDlg').close();
+
 /* ---------------- screen wake lock ----------------
    A remote propped up beside you should not dim out halfway through a track.
    The lock is held only while something is actually playing and the page is in
@@ -2022,7 +2287,7 @@ function connect() {
   clearInterval(songTimer); clearInterval(auxTimer); clearInterval(queueTimer);
   connected = false;
   volumeSeeded = false;
-  wsRetry = 0; lastPush = 0; queueSig = '';
+  wsRetry = 0; lastPush = 0; queueSig = ''; authNoticeShown = false;
   if (!active()) {
     closeSocket();
     lamp('', 'Not connected');
@@ -2074,7 +2339,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-renderSong(); renderProgress(); renderTransport(); renderFullscreen();
+renderSong(); renderProgress(); renderTransport(); renderFullscreen(); renderConnection();
 if (!store.data.connections.length) { renderConns(); dlg.showModal(); }
 else connect();
 </script>
