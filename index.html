@@ -109,9 +109,25 @@ img{display:block}
    the cover stays square while shrinking; max-height alone would squash it */
 .art-wrap{flex:1 1 auto;min-height:0;width:100%;display:flex;justify-content:center;align-items:center}
 .actions{flex:none}
-.art{
+/* the cover is the play control, so the sized box is the button and the image
+   fills it; --art-size is still measured from the wrapper around them */
+.art-btn{
+  display:block;position:relative;
   width:var(--art-size,100%);aspect-ratio:1;
-  border-radius:var(--r-md);object-fit:cover;
+  border-radius:var(--r-md);
+}
+/* a scrim rather than an icon: enough to say the cover is pressable without
+   parking a glyph on the artwork. touch has no hover to show it with */
+.art-btn::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;
+  background:rgba(0,0,0,.28);opacity:0;
+  transition:opacity .15s cubic-bezier(.2,0,0,1);
+}
+.art-btn:hover::after,.art-btn:focus-visible::after{opacity:1}
+@media(hover:none){.art-btn::after{content:none}}
+.art{
+  display:block;width:100%;height:100%;
+  border-radius:inherit;object-fit:cover;
   background:#0f0f0f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%230f0f0f'/%3E%3Cg fill='none' stroke='%23303030' stroke-width='2'%3E%3Ccircle cx='60' cy='60' r='30'/%3E%3C/g%3E%3Cpath d='M52 46v28a7 7 0 1 1-4-6.3V42l24-6v24a7 7 0 1 1-4-6.3V41z' fill='%23404040'/%3E%3C/svg%3E") center/cover no-repeat;
   /* three transparent layers read as depth; one hard shadow reads as a border */
   box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.4),0 16px 48px rgba(0,0,0,.3);
@@ -359,7 +375,7 @@ img{display:block}
 /* ============ tablet and below ============ */
 @media(max-width:1000px){
   .content{gap:16px}
-  .art{max-width:min(300px,42vh)}
+  .art-btn{max-width:min(300px,42vh)}
 }
 
 /* ============ mobile: one pane at a time, mini player, bottom nav ============ */
@@ -378,7 +394,6 @@ img{display:block}
   body:not([data-view="player"]) .pb-transport{order:2;flex:none}
   body:not([data-view="player"]) .times,
   body:not([data-view="player"]) #bPrev,
-  body:not([data-view="player"]) .step,
   body:not([data-view="player"]) #bLike,
   body:not([data-view="player"]) #bDislike,
   body:not([data-view="player"]) #bShuffle,
@@ -423,9 +438,7 @@ img{display:block}
   body[data-view="player"] .pb-track .s{font-size:14px;margin-top:4px}
   body[data-view="player"] .pb-right{flex:0 0 100%;order:3;gap:24px;justify-content:center}
   body[data-view="player"] .vol{display:none}
-  /* five across, as in the app: shuffle, prev, play, next, repeat.
-     keeping the ten second steps too would overflow a phone */
-  body[data-view="player"] .step{display:none}
+  /* five across, as in the app: shuffle, prev, play, next, repeat */
   body[data-view="player"] .pb-right{display:none}
   body[data-view="player"] .ctrls{gap:16px}
   body[data-view="player"] .ib{width:48px;height:48px}
@@ -436,7 +449,7 @@ img{display:block}
   body[data-view="player"] .now{overflow:hidden;justify-content:center}
   /* the app shows the rating and fullscreen pills under the artwork on a phone */
   body[data-view="player"] .actions{display:flex;padding:16px 4px 0}
-  body[data-view="player"] .art{max-width:100%}
+  body[data-view="player"] .art-btn{max-width:100%}
   .track .knob{opacity:1}
 }
 @media(min-width:720px){
@@ -509,7 +522,9 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
     <!-- now playing -->
     <section class="now" id="nowPane">
       <div class="art-wrap">
-        <img class="art" id="art" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+        <button class="art-btn" id="artToggle" aria-label="Play" title="Play or pause (Space)">
+          <img class="art" id="art" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+        </button>
       </div>
       <!-- rating and fullscreen move in here on a phone, as in the app;
            lyrics has its own tab in the bottom bar. the track's name and
@@ -564,12 +579,8 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
       <div class="ctrls">
         <button class="ib small" id="bPrev" aria-label="Previous track" title="Previous (P)">
           <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm12 12V6l-9 6z"/></svg></button>
-        <button class="ib small step" id="bBack" aria-label="Go back 10 seconds" title="Back 10s (←)">
-          <svg viewBox="0 0 24 24"><path d="M11 6V2.5L6 7l5 4.5V8a5 5 0 1 1-5 5H4a7 7 0 1 0 7-7z"/></svg></button>
         <button class="ib play" id="bPlay" aria-label="Play" title="Play or pause (Space)">
           <svg viewBox="0 0 24 24"><path id="playIcon" d="M8 5v14l11-7z"/></svg></button>
-        <button class="ib small step" id="bFwd" aria-label="Go forward 10 seconds" title="Forward 10s (→)">
-          <svg viewBox="0 0 24 24"><path d="M13 6V2.5L18 7l-5 4.5V8a5 5 0 1 0 5 5h2a7 7 0 1 1-7-7z"/></svg></button>
         <button class="ib small" id="bNext" aria-label="Next track" title="Next (N)">
           <svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18V6l9 6z"/></svg></button>
       </div>
@@ -997,6 +1008,7 @@ function renderProgress() {
 function renderTransport() {
   $('playIcon').setAttribute('d', state.paused ? 'M8 5v14l11-7z' : 'M6 5h4v14H6zm8 0h4v14h-4z');
   $('bPlay').setAttribute('aria-label', state.paused ? 'Play' : 'Pause');
+  $('artToggle').setAttribute('aria-label', state.paused ? 'Play' : 'Pause');
   $('bLike').classList.toggle('on', state.like === 'LIKE');
   $('bDislike').classList.toggle('on', state.like === 'DISLIKE');
   $('bShuffle').classList.toggle('on', !!state.shuffle);
@@ -1567,10 +1579,15 @@ $('bPlay').onclick = () => {
   setPaused(!state.paused); renderTransport();
   act(() => api.post('/api/v1/toggle-play'));
 };
+/* the cover is the biggest thing on the page, so it is also the easiest target
+   for the control you reach for most */
+$('artToggle').onclick = () => $('bPlay').click();
 $('bPrev').onclick = () => act(() => api.post('/api/v1/previous'));
 $('bNext').onclick = () => act(() => api.post('/api/v1/next'));
-$('bBack').onclick = () => act(() => api.post('/api/v1/go-back', { seconds: store.data.seekStep }));
-$('bFwd').onclick = () => act(() => api.post('/api/v1/go-forward', { seconds: store.data.seekStep }));
+/* no buttons of its own any more; the arrow keys, the scrubber and the OS media
+   controls are what reach this */
+const seekBy = (back) =>
+  act(() => api.post(back ? '/api/v1/go-back' : '/api/v1/go-forward', { seconds: store.data.seekStep }));
 /* Play and pause has always lit up on the press while the request is in flight;
    these lagged a poll behind it and felt broken by comparison. Each one is a
    toggle or a fixed cycle, so the result is known before the player answers,
@@ -1801,11 +1818,13 @@ $('bAddId').onclick = () => {
 document.addEventListener('keydown', (e) => {
   if (e.target.matches('input,textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.target === track && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
-  const map = {
-    ' ': 'bPlay', n: 'bNext', p: 'bPrev', arrowleft: 'bBack', arrowright: 'bFwd',
-    m: 'bMute', s: 'bShuffle', r: 'bRepeat', f: 'bFull', l: 'bLike'
-  };
-  const id = map[e.key === ' ' ? ' ' : e.key.toLowerCase()];
+  const k = e.key === ' ' ? ' ' : e.key.toLowerCase();
+  if (k === 'arrowleft' || k === 'arrowright') {
+    e.preventDefault();
+    return seekBy(k === 'arrowleft');
+  }
+  const map = { ' ': 'bPlay', n: 'bNext', p: 'bPrev', m: 'bMute', s: 'bShuffle', r: 'bRepeat', f: 'bFull', l: 'bLike' };
+  const id = map[k];
   if (id) { e.preventDefault(); $(id).click(); }
 });
 
