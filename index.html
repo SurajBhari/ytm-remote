@@ -72,6 +72,11 @@ body::before{
 button,input{font:inherit;color:inherit}
 button{
   cursor:pointer;background:none;border:none;padding:0;
+  /* a tap on an icon is a command, not a piece of text being picked: without
+     these the browser paints its own box over the glyph and a long press
+     leaves it looking selected */
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;
   /* the press is the only thing that scales, so it can be interrupted by the
      next press instead of queueing behind a keyframe */
   transition-property:scale,background-color,color,opacity;
