@@ -48,13 +48,19 @@ Scrolling over the volume control nudges it.
 
 **Queue** — the full queue with the current track highlighted; click to jump to a track, reorder it, remove it, or clear the queue. A separate tab shows what's coming up next.
 
+<img src="screenshot-queue.png" alt="The Up next tab on a phone, the playing track marked with bars" width="320">
+
 **Search** — search the YouTube Music catalogue and drop any result into the queue. You can also paste a raw video ID.
+
+![The Search tab, results ready to drop into the queue](screenshot-search.png)
 
 **Lyrics** — time-synced where they exist, scrolling themselves and dimming what has passed.
 Tap any line to jump to that moment. Sources are tried in order and synced always wins over
 plain: [LRCLIB](https://lrclib.net) (timed LRC), then [lyrics.ovh](https://lyrics.ovh) as a
 plain-text backstop. Candidates are ranked by track length, because the same title is often
 uploaded at several different durations and the wrong one drifts audibly.
+
+![The Lyrics tab, the current line lifted out of the ones around it](screenshot-lyrics.png)
 
 ### Keyboard
 
