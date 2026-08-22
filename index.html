@@ -264,6 +264,14 @@ img{display:block}
 .reordering .row.dragging:hover{background:var(--surface-2)}
 .row.playing .t{color:var(--accent);font-weight:500}
 .row.playing .idx{color:var(--accent)}
+/* On a phone the row runs out of width before the title does: the three
+   buttons hold 112px whatever the screen, and touch cannot give them up
+   because it has no drag. The length is the column that yields — the player
+   bar carries it for the track that is playing, and the rest are a tap away. */
+@media(max-width:420px){
+  .row{gap:8px}
+  .row .dur{display:none}
+}
 .bars{display:flex;align-items:flex-end;gap:2px;width:24px;height:14px;justify-content:center}
 .bars i{width:3px;background:var(--accent);animation:eq .9s ease-in-out infinite}
 .bars i:nth-child(2){animation-delay:.3s}
