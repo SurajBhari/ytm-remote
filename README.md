@@ -4,6 +4,10 @@ A browser remote control for the [YouTube Music desktop app](https://github.com/
 
 **→ [Open the remote](https://surajbhari.com/ytm-remote/)**
 
+![The remote in a desktop browser, playing a track with the queue beside it](screenshot-desktop.png)
+
+<img src="screenshot-mobile.png" alt="The same page on a phone, collapsed to a full-screen player with bottom tabs" width="320">
+
 Your connection details stay in `localStorage` in your browser. Nothing is sent anywhere except to the player address you enter.
 
 ## Setup
