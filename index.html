@@ -107,6 +107,16 @@ img{display:block}
 /* the name carries the header on its own; there is no mark */
 .brand{font-weight:500;font-size:15px;letter-spacing:.01em;white-space:nowrap}
 .top .grow{flex:1}
+/* the header's buttons are icons, and a round target already carries its own
+   padding: the row's 12px between two of them reads as a hole, so the group is
+   pulled back together */
+.top .ib + .ib{margin-left:-8px}
+/* the countdown is the one thing up here worth reading, so the sleep button
+   grows a label while a timer is running and is back to an icon when it is not */
+#btnSleep{grid-auto-flow:column;gap:6px}
+#sleepLeft{display:none;font-size:12px;font-variant-numeric:tabular-nums}
+#btnSleep.on{width:auto;padding:0 12px}
+#btnSleep.on #sleepLeft{display:block}
 .lamp{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3)}
 .lamp i{width:8px;height:8px;border-radius:var(--r-round);background:#606060;flex:none}
 .lamp.on i{background:#2ba640}
@@ -483,8 +493,9 @@ img{display:block}
 /* ============ mobile: one pane at a time, mini player, bottom nav ============ */
 @media(max-width:719px){
   .content{padding:0 12px 12px;gap:0}
-  /* the header carries two text buttons here, so the status gives up its words
-     and keeps only the dot. hidden rather than removed, so it is still read out */
+  /* the header carries three buttons and the name here, so the status gives up
+     its words and keeps only the dot. hidden rather than removed, so it is
+     still read out */
   #lampText{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   .now,.side{flex:1 1 auto}
   .nav{display:flex}
@@ -633,8 +644,15 @@ body.offline .art-btn::after{content:none}
     <span class="brand">YTM Remote</span>
     <span class="lamp" id="lamp"><i aria-hidden="true"></i><span id="lampText" role="status" aria-live="polite">Not connected</span></span>
     <span class="grow"></span>
-    <button class="txtbtn" id="btnSleep">Sleep</button>
-    <button class="txtbtn" id="btnConn">Connections</button>
+    <button class="ib small" id="btnSearch" aria-label="Search" title="Search">
+      <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 0 3.5 10.9l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/></svg>
+    </button>
+    <button class="ib small" id="btnSleep" aria-label="Sleep timer" title="Sleep timer">
+      <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.91-.1-1.36A5.39 5.39 0 0 1 16.5 12.9 5.4 5.4 0 0 1 11.1 7.5a5.39 5.39 0 0 1 2.26-4.4A9.5 9.5 0 0 0 12 3z"/></svg><span id="sleepLeft" aria-hidden="true"></span>
+    </button>
+    <button class="ib small" id="btnConn" aria-label="Connections" title="Connections">
+      <svg viewBox="0 0 24 24"><path d="M1 18v3h3a3 3 0 0 0-3-3zm0-4v2a5 5 0 0 1 5 5h2a7 7 0 0 0-7-7zm0-4v2a9 9 0 0 1 9 9h2A11 11 0 0 0 1 10zm20-7H3a2 2 0 0 0-2 2v3h2V5h18v14h-7v2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg>
+    </button>
   </header>
 
   <div class="content">
@@ -2693,6 +2711,15 @@ document.addEventListener('keydown', (e) => {
   if (id) { e.preventDefault(); $(id).click(); }
 });
 
+/* The tabs are already there to be clicked, so this is a shortcut and not a
+   fourth way in: it opens the pane and puts the caret in the box, which is what
+   you came for. On a phone the pane is a whole view, so it goes through the
+   bottom nav's route instead and stays in step with it. */
+$('btnSearch').onclick = () => {
+  if (phone.matches) setView('search'); else setTab('search');
+  $('searchInput').focus();
+};
+
 /* ---------------- connections ---------------- */
 const dlg = $('dlg');
 $('btnConn').onclick = () => { renderConns(); dlg.showModal(); };
@@ -2878,9 +2905,12 @@ function clearSleep() {
 
 function renderSleep() {
   const b = $('btnSleep');
-  if (!sleepAt) { b.textContent = 'Sleep'; b.classList.remove('on'); return; }
-  b.textContent = mmss(Math.max(0, sleepAt - Date.now()) / 1000);
-  b.classList.add('on');
+  /* textContent would take the icon with it, so only the label is written */
+  const left = sleepAt ? mmss(Math.max(0, sleepAt - Date.now()) / 1000) : '';
+  $('sleepLeft').textContent = left;
+  b.classList.toggle('on', !!sleepAt);
+  b.title = left ? `Sleep timer — ${left} left` : 'Sleep timer';
+  b.setAttribute('aria-label', b.title);
 }
 
 function startSleep(ms, label) {
