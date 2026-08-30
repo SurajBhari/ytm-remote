@@ -1123,8 +1123,13 @@ const artLayers = [$('art'), $('artB')];
 let artTop = 0;
 let artUrl = BLANK;
 
-function paintArt(src) {
+/* `cut` is decided by the caller, before anything is waited on. Read here it
+   was already stale: the poll and the socket both report a track change, and
+   the second, identical call landed the swipe while the first call's paint was
+   still decoding — so the paint arrived to find the landing spent and faded. */
+function paintArt(src, cut) {
   const from = artLayers[artTop], to = artLayers[artTop ^ 1];
+  artPending = src;
   to.src = src;
   /* The layer being brought forward is the one that was in front two tracks
      ago, and it goes on showing that cover until the new one has decoded into
@@ -1133,11 +1138,9 @@ function paintArt(src) {
      stale frame. Nothing is revealed until the element itself says it is
      ready, which for a cover already in the cache is the very next frame. */
   const reveal = () => {
+    if (artPending === src) artPending = null;
     if (artUrl !== src) return;        // a newer track got here first
-    /* the cover a swipe carried in is already the one playing and already in
-       frame, so the centre takes it as a cut — a fade on the end of a gesture
-       reads as the swipe being undone and done again */
-    const cut = artLanded(src);
+    artLanded(src);
     if (cut) { from.style.transition = 'none'; to.style.transition = 'none'; }
     to.classList.remove('leave', 'on');
     to.classList.add('enter');
@@ -1148,24 +1151,45 @@ function paintArt(src) {
     from.classList.add('leave');
     artTop ^= 1;
     $('barArt').src = src;
-    if (cut) requestAnimationFrame(() => { from.style.transition = ''; to.style.transition = ''; });
+    /* Restoring on the next frame put it back before the browser had worked out
+       the new opacity: a requestAnimationFrame callback runs ahead of style, so
+       the change was still pending, found a transition again, and dissolved
+       after all. Forcing the recalculation here settles it while there is
+       nothing to transition with, and only then is the transition handed back. */
+    if (cut) {
+      void to.offsetWidth;
+      from.style.transition = ''; to.style.transition = '';
+    }
   };
-  if (to.decode) to.decode().then(reveal, reveal); else reveal();
+  /* nothing to wait for when cutting: the cover is on the screen already, in
+     the cell the swipe dragged into frame, so it is decoded by definition */
+  if (cut || !to.decode) reveal(); else to.decode().then(reveal, reveal);
 }
+
+/* the cover whose paint has been started but not yet shown */
+let artPending = null;
 
 function setArt(url) {
   const next = url || BLANK;
-  /* the next track off the same album wears the same cover, so there is nothing
-     to paint — but a swipe is still waiting on it */
-  if (next === artUrl) { artLanded(next); return; }
+  if (next === artUrl) {
+    /* Asked for the same cover twice: the next track off the same album wears
+       it, and the poll and the socket both announce a change. A swipe waiting
+       on it is landed by whichever paint is actually going to show it, so a
+       repeat while one is in flight must keep its hands off. */
+    if (artPending !== next) artLanded(next);
+    return;
+  }
   artUrl = next;
+  /* Claimed now, synchronously. A swipe is a cut, and whether it was one cannot
+     be decided after a decode has been waited on — by then the landing may have
+     been taken by a duplicate call, or given up by the fallback timer. */
+  const cut = !!artFlung;
   /* the cover a swipe carried in is on the screen already and therefore already
-     decoded: waiting on decode() would hand the frame to whatever runs in
-     between, which is the code that empties the cell it is being read from */
-  if (artFlung && next === flungSrc) return paintArt(next);
-  if (next === BLANK) return paintArt(BLANK);
+     decoded, so there is nothing to wait for */
+  if (cut && next === flungSrc) return paintArt(next, true);
+  if (next === BLANK) return paintArt(BLANK, cut);
   const pre = new Image();
-  const go = () => { if (artUrl === next) paintArt(next); };
+  const go = () => { if (artUrl === next) paintArt(next, cut); };
   pre.src = next;
   if (pre.decode) pre.decode().then(go, go); else pre.onload = pre.onerror = go;
 }
@@ -2207,9 +2231,13 @@ function flingArt(dir) {
   else settleArt();
   /* nothing changed — the end of the queue, or repeat-one playing it again.
      The rail comes back rather than sitting on a cover that is not playing. */
+  /* Only for a swipe that changed nothing — the end of the queue, or repeat-one
+     playing it again. A change that does happen takes about a second and a
+     quarter to come back, so this sits well clear of it rather than cutting
+     across the answer it is waiting for. */
   artFlungTimer = setTimeout(() => {
     artFlung = 0; flungSrc = null; railSet(0, true); flushSides();
-  }, 1400);
+  }, 3000);
 }
 
 /* The swipe has already put the new cover in frame; all that is left is to move
