@@ -1035,6 +1035,10 @@ let artUrl = BLANK;
 
 function paintArt(src) {
   const from = artLayers[artTop], to = artLayers[artTop ^ 1];
+  /* a swipe has the cover off the screen: dissolving underneath it wastes the
+     transition and leaves the tail of it running as the new one flies in */
+  const cut = !!artFlung;
+  if (cut) { from.style.transition = 'none'; to.style.transition = 'none'; }
   to.src = src;
   to.classList.remove('leave', 'on');
   to.classList.add('enter');
@@ -1045,11 +1049,15 @@ function paintArt(src) {
   from.classList.add('leave');
   artTop ^= 1;
   $('barArt').src = src;
+  if (cut) requestAnimationFrame(() => { from.style.transition = ''; to.style.transition = ''; });
+  artLanded();
 }
 
 function setArt(url) {
   const next = url || BLANK;
-  if (next === artUrl) return;
+  /* the next track off the same album wears the same cover, so there is nothing
+     to paint — but a swipe is still waiting on it */
+  if (next === artUrl) return artLanded();
   artUrl = next;
   if (next === BLANK) return paintArt(BLANK);
   const pre = new Image();
@@ -1953,6 +1961,7 @@ $('bPlay').onclick = () => {
    covers seeking on a desktop. */
 const artBtn = $('artToggle');
 const SWIPE = 48, DOUBLE_TAP = 300, DRAG_START = 8;
+let artFlung = 0, artFlungTimer = null;    // the direction it was pushed, 0 at home
 let tapTimer = null, lastTapAt = 0, gestureAt = 0;
 let artDrag = null;
 
@@ -1985,18 +1994,33 @@ function settleArt() {
 
 /* right is back, matching the direction the queue moves in */
 function flingArt(dir) {
+  clearTimeout(artFlungTimer);
+  artFlung = dir;
   artBtn.style.transition = 'transform .18s ease-out,opacity .18s ease-out';
   artBtn.style.transform = `translateX(${dir * 65}%) rotate(${dir * 7}deg)`;
   artBtn.style.opacity = '0';
   act(() => api.post(dir > 0 ? '/api/v1/previous' : '/api/v1/next'));
-  /* the replacement comes in from the far side rather than fading up where the
-     old one left, so the pair reads as one shove along a row */
-  setTimeout(() => {
-    artBtn.style.transition = 'none';
-    artBtn.style.transform = `translateX(${-dir * 30}%)`;
-    artBtn.style.opacity = '0';
-    requestAnimationFrame(() => requestAnimationFrame(settleArt));
-  }, 180);
+  /* Off the edge it stays until the track it was pushed towards has actually
+     arrived. Bringing it back on a timer meant the cover slid in before the
+     player had answered, carrying the artwork of the song just left — so every
+     swipe looked like it had landed back on the same song. */
+  artFlungTimer = setTimeout(artLanded, 1400);
+}
+
+/* The replacement enters from the far side rather than fading up where the old
+   one left, so the pair reads as one shove along a row. Called by whichever
+   comes first: new artwork, a track whose artwork happens to be the same, or
+   the wait running out because nothing changed at all — the end of the queue,
+   or repeat-one playing it again. */
+function artLanded() {
+  if (!artFlung) return;
+  const dir = artFlung;
+  artFlung = 0;
+  clearTimeout(artFlungTimer); artFlungTimer = null;
+  artBtn.style.transition = 'none';
+  artBtn.style.transform = `translateX(${-dir * 30}%)`;
+  artBtn.style.opacity = '0';
+  requestAnimationFrame(() => requestAnimationFrame(settleArt));
 }
 
 /* draggable="false" and -webkit-user-drag stop it in the browsers that honour
