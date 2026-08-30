@@ -75,8 +75,18 @@ body{
 body::before{
   content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   background:linear-gradient(180deg,var(--art-bg) 0%,var(--bg) 62%);
-  transition:background 700ms ease;
+  transition:background 700ms ease,opacity 700ms ease;
 }
+/* paused is the lights going down. The art-derived wash pulls back towards the
+   base colour and the covers lose their brightness, so a glance at the page
+   says the music has stopped without reading the play icon. The cover is dimmed
+   through the wrapper around it rather than the image: the image already
+   animates `filter` for the track-change blur, and a second author on that
+   property would fight it. */
+body.dim::before{opacity:.35}
+body.dim .art-wrap,body.dim #barArt{filter:brightness(.62) saturate(.75)}
+.art-wrap,#barArt{transition:filter .5s cubic-bezier(.2,0,0,1)}
+@media(prefers-reduced-motion:reduce){.art-wrap,#barArt{transition:none}}
 button,input{font:inherit;color:inherit}
 button{
   cursor:pointer;background:none;border:none;padding:0;
@@ -1471,6 +1481,7 @@ function renderProgress() {
 }
 
 function renderTransport() {
+  document.body.classList.toggle('dim', state.paused);
   $('playIcon').setAttribute('d', state.paused ? 'M8 5v14l11-7z' : 'M6 5h4v14H6zm8 0h4v14h-4z');
   $('bPlay').setAttribute('aria-label', state.paused ? 'Play' : 'Pause');
   $('artToggle').setAttribute('aria-label', state.paused ? 'Play' : 'Pause');
