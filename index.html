@@ -765,6 +765,11 @@ body.offline .art-btn::after{content:none}
   </div>
 </dialog>
 
+<dialog id="rowDlg">
+  <div class="dlg-head"><span id="rowDlgTitle">Track</span><span style="flex:1"></span><button class="txtbtn" id="rowDlgClose">Close</button></div>
+  <div class="dlg-body"><div class="sleep-grid" id="rowDlgGrid"></div></div>
+</dialog>
+
 <dialog id="sleepDlg">
   <div class="dlg-head">Sleep timer<span style="flex:1"></span><button class="txtbtn" id="sleepClose">Close</button></div>
   <div class="dlg-body">
@@ -1067,6 +1072,22 @@ function warmArt(url) {
 const artPrevEl = $('artPrev'), artNextEl = $('artNext');
 const setSide = (node, url) => { node.src = url || BLANK; };
 
+/* A swipe parks the rail on one of these cells, and the track change it caused
+   is what rewrites them — so emptying one the moment the new track is known
+   blanks the very cover the finger just dragged into place. While a swipe is
+   still landing the writes are held; the landing lets them through, by which
+   time the cell is off the screen again and nothing of it can be seen. */
+let sideHeld = null;
+function sideLater(node, url) {
+  if (!artFlung) return setSide(node, url);
+  (sideHeld || (sideHeld = [])).push([node, url]);
+}
+function flushSides() {
+  const held = sideHeld;
+  sideHeld = null;
+  if (held) for (const [node, url] of held) setSide(node, url);
+}
+
 let warmedFor = null, leftBehind = null;
 async function warmNeighbours() {
   const s = state.song;
@@ -1078,8 +1099,8 @@ async function warmNeighbours() {
   const back = leftBehind;
   leftBehind = s.imageSrc || null;
   warmArt(back);
-  setSide(artPrevEl, back);
-  setSide(artNextEl, null);       // whatever was next is not next any more
+  sideLater(artPrevEl, back);
+  sideLater(artNextEl, null);     // whatever was next is not next any more
   const m = /=w(\d+)-h\d+/.exec(s.imageSrc || '');
   if (!m) return;                 // an address this cannot resize is not worth a guess
   /* a kilobyte to ask what is next. The queue itself is most of a megabyte,
@@ -1090,7 +1111,7 @@ async function warmNeighbours() {
     if (!th.length || s.videoId !== warmedFor) return;
     const url = artAtSize(th[th.length - 1].url, m[1]);
     warmArt(url);
-    setSide(artNextEl, url);
+    sideLater(artNextEl, url);
   } catch {}                      // a queue that will not say is simply not warmed
 }
 
@@ -1104,23 +1125,32 @@ let artUrl = BLANK;
 
 function paintArt(src) {
   const from = artLayers[artTop], to = artLayers[artTop ^ 1];
-  /* the cover a swipe carried in is already the one now playing and already in
-     frame, so the centre takes it without a dissolve — anything else would be a
-     fade nobody asked for across an image that has not changed */
-  const cut = artLanded(src);
-  if (cut) { from.style.transition = 'none'; to.style.transition = 'none'; }
   to.src = src;
-  to.classList.remove('leave', 'on');
-  to.classList.add('enter');
-  void to.offsetWidth;                 // the start state has to be a frame of its own
-  to.classList.remove('enter');
-  to.classList.add('on');
-  from.classList.remove('on');
-  from.classList.add('leave');
-  artTop ^= 1;
-  $('barArt').src = src;
-  if (cut) requestAnimationFrame(() => { from.style.transition = ''; to.style.transition = ''; });
-  artLanded();
+  /* The layer being brought forward is the one that was in front two tracks
+     ago, and it goes on showing that cover until the new one has decoded into
+     it — setting .src only asks. Revealing it on the strength of having asked
+     is why going 1, 2, 3 flashed 1 on the way to 3: the fade began on the
+     stale frame. Nothing is revealed until the element itself says it is
+     ready, which for a cover already in the cache is the very next frame. */
+  const reveal = () => {
+    if (artUrl !== src) return;        // a newer track got here first
+    /* the cover a swipe carried in is already the one playing and already in
+       frame, so the centre takes it as a cut — a fade on the end of a gesture
+       reads as the swipe being undone and done again */
+    const cut = artLanded(src);
+    if (cut) { from.style.transition = 'none'; to.style.transition = 'none'; }
+    to.classList.remove('leave', 'on');
+    to.classList.add('enter');
+    void to.offsetWidth;               // the start state has to be a frame of its own
+    to.classList.remove('enter');
+    to.classList.add('on');
+    from.classList.remove('on');
+    from.classList.add('leave');
+    artTop ^= 1;
+    $('barArt').src = src;
+    if (cut) requestAnimationFrame(() => { from.style.transition = ''; to.style.transition = ''; });
+  };
+  if (to.decode) to.decode().then(reveal, reveal); else reveal();
 }
 
 function setArt(url) {
@@ -1129,6 +1159,10 @@ function setArt(url) {
      to paint — but a swipe is still waiting on it */
   if (next === artUrl) { artLanded(next); return; }
   artUrl = next;
+  /* the cover a swipe carried in is on the screen already and therefore already
+     decoded: waiting on decode() would hand the frame to whatever runs in
+     between, which is the code that empties the cell it is being read from */
+  if (artFlung && next === flungSrc) return paintArt(next);
   if (next === BLANK) return paintArt(BLANK);
   const pre = new Image();
   const go = () => { if (artUrl === next) paintArt(next); };
@@ -1236,6 +1270,13 @@ function localSeek(secs) {
 
 function applyPosition(reported, force) {
   if (typeof reported !== 'number' || !isFinite(reported) || reported < 0) return;
+  /* The player floors its reading: it answered 270 four times running and then
+     271, so "270" means somewhere in [270, 271). Taken at face value the clock
+     sits up to a second behind the audio and half a second behind on average,
+     which is enough to put a lyric line visibly late. The midpoint is the best
+     estimate the reading supports, and the counter still reads the same second
+     because it is floored on the way out. */
+  if (Number.isInteger(reported)) reported += 0.5;
   if (force) seekAt = 0;
   else if (seekAt && performance.now() - seekAt < SEEK_HOLD) return;
   /* The player sometimes reports a position past the end of the track and holds
@@ -1604,10 +1645,18 @@ function queueRow(t, i) {
    lyrics.ovh is a plain-text backstop. Both are HTTPS and CORS-open, which
    is what a page with no backend of its own needs. */
 const lyricsCache = new Map();
-const MAX_DRIFT = 10;   // seconds of length difference we still trust for sync
-/* LRC stamps sit slightly ahead of where a line is actually sung, so the
-   highlight is held back by this much rather than run ahead of it */
-const LYRIC_LAG = 0.4;
+/* The same title is uploaded at a dozen lengths — album edit, radio edit, a
+   version with a long outro — and timed lyrics written against one of them run
+   steadily further out against another. Length is the only evidence available
+   that a hit is this recording, so it is treated as proof rather than as a
+   preference: past this, a synced hit is not used at all. */
+const MAX_DRIFT = 5;
+/* An LRC stamp marks where a line starts, and a highlight that arrives exactly
+   on it already reads as late — by the time the eye has moved, the words are
+   being sung. It leads by a fraction instead. This used to hold the line back
+   by 0.4s on top of a clock that was itself half a second behind the audio,
+   which is why the lyrics trailed the song by about a second. */
+const LYRIC_LEAD = 0.25;
 /* lines kept either side of the active one, so thirteen in view; the outer ones
    are blurred and nearly transparent, which is what lets the window be this wide
    without competing with the line being sung */
@@ -1634,32 +1683,48 @@ function parseLRC(text) {
   return out.sort((a, b) => a.t - b.t);
 }
 
-/* lengths vary a lot between uploads of one title, so the closest wins;
-   a synced hit that is too far off would drift audibly */
+/* A candidate whose length cannot be compared is not a candidate for timing:
+   unverifiable is not the same as close enough. Plain text has no timing to be
+   wrong, so it is held to no such test and is what a failed match falls back
+   to — words in the right order beat words in the wrong places. */
+const lyricDrift = (c, want) =>
+  (want && c.duration) ? Math.abs(c.duration - want) : null;
+const syncUsable = (c, want) => {
+  const d = lyricDrift(c, want);
+  return !!c.syncedLyrics && d !== null && d <= MAX_DRIFT;
+};
+
 function pickBest(list, song) {
   const want = song.songDuration || 0;
   const artist = primaryArtist(song.artist).toLowerCase();
-  let best = null, bestScore = -Infinity;
+  const byArtist = (c) => artist && String(c.artistName || '').toLowerCase().includes(artist);
+  let synced = null, syncedScore = Infinity;
+  let plain = null, plainScore = -Infinity;
+  let rejected = 0;
   for (const c of list) {
     if (c.instrumental) continue;
-    if (!c.syncedLyrics && !c.plainLyrics) continue;
-    const drift = (want && c.duration) ? Math.abs(c.duration - want) : 99;
-    let score = -drift;
-    if (c.syncedLyrics) score += (drift <= MAX_DRIFT) ? 1000 : 200;
-    if (artist && String(c.artistName || '').toLowerCase().includes(artist)) score += 25;
-    if (score > bestScore) { bestScore = score; best = c; }
+    const drift = lyricDrift(c, want);
+    if (syncUsable(c, want)) {
+      /* among versions of the right length, the nearest wins, and the credited
+         artist matching is worth a couple of seconds of slack */
+      const score = drift - (byArtist(c) ? 2 : 0);
+      if (score < syncedScore) { syncedScore = score; synced = c; }
+    } else if (c.syncedLyrics) rejected++;
+    if (c.plainLyrics) {
+      const score = -(drift === null ? 60 : drift) + (byArtist(c) ? 25 : 0);
+      if (score > plainScore) { plainScore = score; plain = c; }
+    }
   }
-  if (!best) return null;
-  const drift = (want && best.duration) ? Math.abs(best.duration - want) : 99;
-  /* synced always wins when it exists; a length mismatch only earns a warning,
-     because timed lyrics slightly out are still more useful than a flat block */
-  const isSynced = !!best.syncedLyrics;
-  return {
-    synced: isSynced,
-    lines: isSynced ? parseLRC(best.syncedLyrics) : null,
-    plain: best.plainLyrics || '',
-    note: (isSynced && drift > MAX_DRIFT) ? `timing may be off, matched a ${mmss(best.duration)} version` : ''
-  };
+  if (synced) {
+    return { synced: true, lines: parseLRC(synced.syncedLyrics), plain: synced.plainLyrics || '', note: '' };
+  }
+  if (plain) {
+    return {
+      synced: false, lines: null, plain: plain.plainLyrics,
+      note: rejected ? 'timed lyrics exist, but none for a recording this length' : ''
+    };
+  }
+  return null;
 }
 
 /* 429 means the provider is throttling us, which is temporary and must not be
@@ -1688,9 +1753,7 @@ async function fetchLyrics(song) {
     const j = await getJSON('https://lrclib.net/api/get?' + q);
     if (j) {
       // an exact hit that is already synced is as good as it gets
-      if (j.syncedLyrics && dur && Math.abs((j.duration || 0) - dur) <= MAX_DRIFT) {
-        return pickBest([j], song);
-      }
+      if (syncUsable(j, dur)) return pickBest([j], song);
       pool.push(j);
     }
   } catch {}
@@ -1703,7 +1766,7 @@ async function fetchLyrics(song) {
       const list = await getJSON('https://lrclib.net/api/search?' + q);
       if (Array.isArray(list)) pool.push(...list);
     } catch {}
-    if (pool.some(c => c.syncedLyrics)) break;   // enough to choose from
+    if (pool.some(c => syncUsable(c, dur))) break;   // enough to choose from
   }
 
   if (pool.length) {
@@ -1801,7 +1864,7 @@ function renderLyrics(res) {
 
 function syncLyrics() {
   if (!lyricLines || !lyricLines.length) return;
-  const now = currentElapsed() - LYRIC_LAG;
+  const now = currentElapsed() + LYRIC_LEAD;
   let i = lyricIdx;
   if (i < 0 || now < lyricLines[i].t) i = -1;            // seeked backwards
   while (i + 1 < lyricLines.length && lyricLines[i + 1].t <= now) i++;
@@ -1843,6 +1906,53 @@ function collect(node, key, out) {
    so every add goes in right after the current track. */
 const queueNext = (videoId) =>
   api.post('/api/v1/queue', { videoId, insertPosition: 'INSERT_AFTER_CURRENT_VIDEO' });
+
+/* There is no endpoint that plays a video id, so playing one now is putting it
+   next and then skipping to it. Awaiting the insert is not enough: the 204 says
+   the player has been told, not that it has moved anything, and a skip sent on
+   the strength of it lands on whatever used to be next — asked for Get Lucky,
+   it played the track that was already queued. So the queue is asked what is
+   coming until it answers with the right one, which is a kilobyte a try. */
+const playNow = async (videoId) => {
+  await queueNext(videoId);
+  for (let i = 0; i < 12; i++) {
+    const next = await api.get('/api/v1/queue/next').catch(() => null);
+    if (next && next.videoId === videoId) break;
+    await new Promise(r => setTimeout(r, 120));
+  }
+  await api.post('/api/v1/next');
+};
+
+/* Hold to see what else a row can do. Bound to the pointer rather than to
+   contextmenu alone so it answers to a finger, and cancelled by any real
+   movement so it never fires on someone who was starting to scroll. */
+function longPress(node, fn) {
+  let timer = null, from = null;
+  const cancel = () => { clearTimeout(timer); timer = null; from = null; };
+  node.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    from = { x: e.clientX, y: e.clientY };
+    timer = setTimeout(() => { timer = null; from = null; node._held = performance.now(); fn(); }, 480);
+  });
+  node.addEventListener('pointermove', (e) => {
+    if (from && Math.hypot(e.clientX - from.x, e.clientY - from.y) > 10) cancel();
+  });
+  node.addEventListener('pointerup', cancel);
+  node.addEventListener('pointercancel', cancel);
+  node.addEventListener('contextmenu', (e) => { e.preventDefault(); node._held = performance.now(); fn(); });
+}
+
+function rowMenu(title, actions) {
+  $('rowDlgTitle').textContent = title;
+  const g = $('rowDlgGrid');
+  g.replaceChildren();
+  for (const [label, run] of actions) {
+    const b = el('button', 'chip-btn', label);
+    b.onclick = () => { $('rowDlg').close(); run(); };
+    g.appendChild(b);
+  }
+  $('rowDlg').showModal();
+}
 
 /* One search is three: YouTube Music will only give a section its proper
    columns when it is asked for that section alone. Unfiltered, a song comes
@@ -1924,10 +2034,15 @@ function searchRow(t) {
   const b = el('button');
   let go;
   if (t.videoId) {
-    go = () => act(() => queueNext(t.videoId), 'Playing next: ' + t.title);
+    /* picking a result means wanting to hear it, not wanting to hear it later.
+       Queueing is still there, on the button and under a hold. */
+    const queue = () => act(() => queueNext(t.videoId), 'Playing next: ' + t.title);
+    go = () => act(() => playNow(t.videoId), 'Playing: ' + t.title);
+    longPress(row, () => rowMenu(t.title, [['Play now', go], ['Play next', queue]]));
     b.title = 'Play next';
     b.setAttribute('aria-label', 'Play next: ' + t.title);
     b.appendChild(svg(ICON.next));
+    b.onclick = (e) => { e.stopPropagation(); queue(); };
   } else {
     /* nothing here can put an artist on the queue, so the row offers what it
        can instead of looking like a track that refuses to play */
@@ -1936,9 +2051,10 @@ function searchRow(t) {
     b.title = 'Open on YouTube Music';
     b.setAttribute('aria-label', 'Open ' + t.title + ' on YouTube Music');
     b.appendChild(svg(ICON.open));
+    b.onclick = (e) => { e.stopPropagation(); go(); };
   }
-  b.onclick = (e) => { e.stopPropagation(); go(); };
-  row.onclick = go;
+  /* the press that opened the menu must not also count as a tap on the row */
+  row.onclick = () => { if (!row._held || performance.now() - row._held > 700) go(); };
   const acts = el('div', 'acts');
   acts.appendChild(b);
   row.appendChild(acts);
@@ -2033,6 +2149,7 @@ $('bPlay').onclick = () => {
 const artBtn = $('artToggle');
 const SWIPE = 48, DOUBLE_TAP = 300, DRAG_START = 8;
 let artFlung = 0, artFlungTimer = null;    // the direction it was pushed, 0 at home
+let flungSrc = null;                       // the cover it carried into the frame
 let tapTimer = null, lastTapAt = 0, gestureAt = 0;
 let artDrag = null;
 
@@ -2075,30 +2192,39 @@ function flingArt(dir) {
   /* going back, the cover before the one being landed on is not known — and
      the one being left is now what comes next, not what came before */
   if (dir > 0) leftBehind = null;
-  const carried = (dir > 0 ? artPrevEl : artNextEl).src !== BLANK;
+  const cell = dir > 0 ? artPrevEl : artNextEl;
+  artFlung = dir;
+  /* Read now, not when the track lands. The cells are rewritten the moment the
+     new track is known — before its artwork has finished decoding — so asking
+     the cell what it was carrying afterwards got the answer "nothing", and the
+     swipe fell back to dissolving over a cover it had already brought in. */
+  flungSrc = cell.src !== BLANK ? cell.src : null;
   act(() => api.post(dir > 0 ? '/api/v1/previous' : '/api/v1/next'));
   /* no cover on that side — the queue was never read, or it ends here. The
-     track still changes; the centre simply dissolves to it when it arrives,
-     rather than the rail sliding a blank panel in to prove a point. */
-  if (!carried) { artFlung = 0; return settleArt(); }
-  artFlung = dir;
-  railSet(dir * (artBtn.offsetWidth || 0), true);
+     track still changes and the swap is still a cut; the rail simply has
+     nothing worth sliding, so it comes back rather than showing a blank panel. */
+  if (flungSrc) railSet(dir * (artBtn.offsetWidth || 0), true);
+  else settleArt();
   /* nothing changed — the end of the queue, or repeat-one playing it again.
      The rail comes back rather than sitting on a cover that is not playing. */
-  artFlungTimer = setTimeout(() => { artFlung = 0; railSet(0, true); }, 1400);
+  artFlungTimer = setTimeout(() => {
+    artFlung = 0; flungSrc = null; railSet(0, true); flushSides();
+  }, 1400);
 }
 
 /* The swipe has already put the new cover in frame; all that is left is to move
-   the rail back under it, which moves nothing anybody can see. Answers whether
-   the centre can take the artwork without a dissolve — true when the cover the
-   swipe carried in is the one that turned out to be playing. */
+   the rail back under it, which moves nothing anybody can see. It always
+   answers yes: a swipe is a cut, never a dissolve. Fading is how the page
+   shows a change it did not make — a track ending, a queue jump — and putting
+   one on the end of a gesture reads as the swipe being undone and redone. */
 function artLanded(src) {
   if (!artFlung) return false;
-  const carried = (artFlung > 0 ? artPrevEl : artNextEl).src;
-  artFlung = 0;
+  const carried = flungSrc;
+  artFlung = 0; flungSrc = null;
   clearTimeout(artFlungTimer); artFlungTimer = null;
-  railSet(0, false);
-  return carried === src;
+  if (carried) railSet(0, false);
+  flushSides();
+  return true;
 }
 
 /* draggable="false" and -webkit-user-drag stop it in the browsers that honour
@@ -2651,6 +2777,7 @@ function renderSleepOptions() {
 
 $('btnSleep').onclick = () => { renderSleepOptions(); $('sleepDlg').showModal(); };
 $('sleepClose').onclick = () => $('sleepDlg').close();
+$('rowDlgClose').onclick = () => $('rowDlg').close();
 
 /* ---------------- screen wake lock ----------------
    A remote propped up beside you should not dim out halfway through a track.
