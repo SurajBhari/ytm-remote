@@ -1025,6 +1025,46 @@ function animateSwap(videoId) {
   node.classList.add('swap');
 }
 
+/* A swipe can land no faster than the cover it is reaching for can be fetched,
+   and the first sight of one is always a download — which is most of the wait
+   the artwork now sits out at the edge of the screen. Both neighbours are
+   pulled into the browser's cache while the current track plays, so arriving is
+   a decode rather than a round trip.
+
+   The player's cover is the queue's thumbnail with a different size on the end,
+   so the address can be worked out rather than asked for; only the size the
+   current track is being shown at is trusted, since that is the one the next
+   will be requested at too. */
+const artAtSize = (url, px) => url.replace(/=w\d+-h\d+/, '=w' + px + '-h' + px);
+const warmedArt = new Set();
+
+function warmArt(url) {
+  if (!url || warmedArt.has(url)) return;
+  warmedArt.add(url);
+  new Image().src = url;
+}
+
+let warmedFor = null, leftBehind = null;
+async function warmNeighbours() {
+  const s = state.song;
+  if (!s || !s.videoId || s.videoId === warmedFor) return;
+  warmedFor = s.videoId;
+  /* the track just left is the one a swipe back lands on. It has been on the
+     screen, so this is usually a cache hit costing nothing — which is the point
+     of doing it rather than waiting to find out it has been evicted. */
+  warmArt(leftBehind);
+  leftBehind = s.imageSrc || null;
+  const m = /=w(\d+)-h\d+/.exec(s.imageSrc || '');
+  if (!m) return;                 // an address this cannot resize is not worth a guess
+  /* a kilobyte to ask what is next. The queue itself is most of a megabyte,
+     which is why it is not what this reads. */
+  try {
+    const next = await api.get('/api/v1/queue/next');
+    const th = (next && next.thumbnail && next.thumbnail.thumbnails) || [];
+    if (th.length) warmArt(artAtSize(th[th.length - 1].url, m[1]));
+  } catch {}                      // a queue that will not say is simply not warmed
+}
+
 /* The cover crossfades between two stacked layers. The new one is decoded
    before anything moves, so the frame never falls back to the placeholder
    while it downloads, and a track changed twice in quick succession only
@@ -1113,6 +1153,7 @@ function renderSong() {
   if (year) part(document.createTextNode(year));
 
   setArt(s.imageSrc);
+  warmNeighbours();
   themeFromArt(s.imageSrc);
   animateSwap(s.videoId);
 }
