@@ -2720,6 +2720,61 @@ $('btnSearch').onclick = () => {
   $('searchInput').focus();
 };
 
+/* ---------------- two-finger gestures ---------------- */
+/* One finger is spoken for everywhere — the cover swipes, the queue reorders,
+   the scrubber seeks — so the gestures that work anywhere on the page take two,
+   which nothing else claims. Touch events rather than pointer events: two
+   fingers arrive as two unrelated pointers, and the touch list is the only
+   thing that already knows they are one hand. */
+const TWO_VOL_STEP = 26;     // down the screen, per five points of volume
+
+let two = null;
+const twoMid = (t) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
+
+addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 2 || document.querySelector('dialog[open]')) { two = null; return; }
+  /* the first of the two fingers has already started a drag on whatever it
+     landed on; a second finger says it was never meant as one */
+  if (artDrag) { artDrag = null; settleArt(); }
+  const m = twoMid(e.touches);
+  two = { x: m.x, y: m.y, axis: '', steps: 0, sent: false };
+}, { passive: true });
+
+addEventListener('touchmove', (e) => {
+  if (!two || e.touches.length !== 2) return;
+  e.preventDefault();          // or the browser reads it as a pinch or a scroll
+  const m = twoMid(e.touches);
+  let dx = m.x - two.x, dy = m.y - two.y;
+  /* the axis is settled once and then held: hands drift, and letting every move
+     decide again turned a slow horizontal swipe into a volume change halfway */
+  if (!two.axis) {
+    if (Math.abs(dx) < DRAG_START && Math.abs(dy) < DRAG_START) return;
+    two.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    two.x = m.x; two.y = m.y;  // the distance is measured from where it was recognised
+    dx = dy = 0;
+  }
+  if (two.axis === 'x') {
+    /* the cover's own swipe, reached from anywhere: the same distance decides
+       it, right is still back, and the track still arrives as a cut with the
+       rail carrying the cover it was reaching for. One per gesture, though —
+       the fingers stay down long past the threshold, and repeating would run
+       through the queue for as long as they are there. */
+    if (!two.sent && Math.abs(dx) > SWIPE) {
+      two.sent = true;
+      flingArt(dx > 0 ? 1 : -1);
+    }
+    return;
+  }
+  /* volume goes on tracking, because a long run of it is still one movement of
+     the hand and stopping after five points would mean lifting and starting again */
+  const steps = Math.round(-dy / TWO_VOL_STEP);
+  if (steps !== two.steps) { nudgeVolume((steps - two.steps) * 5); two.steps = steps; }
+}, { passive: false });
+
+const twoEnd = () => { two = null; };
+addEventListener('touchend', twoEnd, { passive: true });
+addEventListener('touchcancel', twoEnd, { passive: true });
+
 /* ---------------- connections ---------------- */
 const dlg = $('dlg');
 $('btnConn').onclick = () => { renderConns(); dlg.showModal(); };
