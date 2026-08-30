@@ -182,6 +182,26 @@ img{display:block}
   .art{transition:opacity .2s linear}
   .art.enter,.art.leave{scale:1;filter:none}
 }
+/* A dissolve rather than a fade: the arriving cover does not lie over the one
+   it replaces at half strength, it eats it pixel by pixel, each pixel flipping
+   the moment a rising threshold passes its own noise value. CSS masks can only
+   scale alpha, never threshold it, so the thresholds are baked into one
+   tall strip of noise ahead of time and the mask is stepped down it. The cover
+   underneath is left at full strength the whole way, so what shows through the
+   holes is the old cover and not the placeholder. */
+.art.dissolve{
+  opacity:1;scale:1;filter:none;transition:none;
+  -webkit-mask-image:var(--dissolve);mask-image:var(--dissolve);
+  -webkit-mask-size:100% 2400%;mask-size:100% 2400%;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  animation:art-dissolve .55s steps(24,jump-none) forwards;
+}
+/* jump-none so the twenty-four steps include both ends: the first frame is
+   empty and the last is solid, and skipping either would blink */
+@keyframes art-dissolve{
+  from{-webkit-mask-position:0 0;mask-position:0 0}
+  to{-webkit-mask-position:0 100%;mask-position:0 100%}
+}
 /* action pills under the artwork; the phone layout only. the pill shape is the
    reference app's own, not a default. unslop-ignore */
 .actions{display:none;gap:8px;margin-top:16px;flex-wrap:wrap}
@@ -1123,6 +1143,74 @@ const artLayers = [$('art'), $('artB')];
 let artTop = 0;
 let artUrl = BLANK;
 
+/* The noise the dissolve steps through. One field is drawn, then thresholded
+   once per step into a strip that many cells tall, and that strip is the mask.
+   It costs a canvas and a couple of milliseconds and it is the same for every
+   cover, so it is baked once when the page has nothing better to do; until it
+   is ready the crossfade above stands in. */
+let dissolveUrl = '';
+
+const smoothstep = t => t * t * (3 - 2 * t);
+
+/* Value noise: a coarse lattice of random values interpolated smoothly, with
+   finer lattices laid over it. Television snow would dissolve as a grey haze —
+   this breaks up in patches, which is what the eye reads as an image giving
+   way. */
+function noiseField(n) {
+  const out = new Float32Array(n * n);
+  let total = 0;
+  /* weighted towards the middle and fine octaves: an even falloff left
+     continents, and a cover is small enough that continents read as a melt
+     rather than a dissolve */
+  for (const [cells, amp] of [[6, .7], [12, 1], [24, .9], [48, .45]]) {
+    const w = cells + 1, g = new Float32Array(w * w);
+    for (let i = 0; i < g.length; i++) g[i] = Math.random();
+    for (let y = 0; y < n; y++) {
+      const fy = y / n * cells, y0 = fy | 0, sy = smoothstep(fy - y0);
+      for (let x = 0; x < n; x++) {
+        const fx = x / n * cells, x0 = fx | 0, sx = smoothstep(fx - x0);
+        const top = g[y0 * w + x0] + (g[y0 * w + x0 + 1] - g[y0 * w + x0]) * sx;
+        const bot = g[(y0 + 1) * w + x0] + (g[(y0 + 1) * w + x0 + 1] - g[(y0 + 1) * w + x0]) * sx;
+        out[y * n + x] += amp * (top + (bot - top) * sy);
+      }
+    }
+    total += amp;
+  }
+  /* Octaves stacked like that bunch up around the middle, which would leave the
+     first and last frames doing almost nothing and the middle ones doing it all.
+     Replacing each value by its rank spreads them evenly again, so every frame
+     takes the same share of the picture. */
+  const rank = Array.from(out.keys()).sort((a, b) => out[a] - out[b]);
+  for (let r = 0; r < rank.length; r++) out[rank[r]] = r / (rank.length - 1);
+  return out;
+}
+
+function bakeDissolve() {
+  const N = 192, FRAMES = 24, EDGE = .3;    // EDGE feathers the threshold: without it
+  const c = document.createElement('canvas');   // the field is a stencil and crawls
+  c.width = N; c.height = N * FRAMES;
+  const ctx = c.getContext('2d');
+  const sheet = ctx.createImageData(N, N * FRAMES), px = sheet.data;
+  const field = noiseField(N);
+  for (let f = 0; f < FRAMES; f++) {
+    /* the last threshold clears 1 by a whole edge width, so the final frame is
+       solid and the cover it arrived over can be dropped without a seam */
+    const t = f / (FRAMES - 1) * (1 + EDGE);
+    const base = f * N * N * 4;
+    for (let i = 0; i < field.length; i++) {
+      const p = base + i * 4;
+      px[p] = px[p + 1] = px[p + 2] = 255;
+      px[p + 3] = Math.max(0, Math.min(1, (t - field[i]) / EDGE)) * 255;
+    }
+  }
+  ctx.putImageData(sheet, 0, 0);
+  c.toBlob((b) => {
+    if (!b) return;                          // no blob, no dissolve; the fade stays
+    dissolveUrl = URL.createObjectURL(b);
+    document.documentElement.style.setProperty('--dissolve', `url("${dissolveUrl}")`);
+  });
+}
+
 /* `cut` is decided by the caller, before anything is waited on. Read here it
    was already stale: the poll and the socket both report a track change, and
    the second, identical call landed the swipe while the first call's paint was
@@ -1141,14 +1229,31 @@ function paintArt(src, cut) {
     if (artPending === src) artPending = null;
     if (artUrl !== src) return;        // a newer track got here first
     artLanded(src);
+    const gen = ++artGen;
+    /* the arriving cover has to be the one in front, or the dissolve would be
+       cutting holes in a layer with the old cover sitting on top of it */
+    to.style.zIndex = '1'; from.style.zIndex = '0';
     if (cut) { from.style.transition = 'none'; to.style.transition = 'none'; }
-    to.classList.remove('leave', 'on');
-    to.classList.add('enter');
-    void to.offsetWidth;               // the start state has to be a frame of its own
-    to.classList.remove('enter');
-    to.classList.add('on');
-    from.classList.remove('on');
-    from.classList.add('leave');
+    to.classList.remove('leave', 'on', 'enter', 'dissolve');
+    if (!cut && dissolveUrl && !stillness.matches) {
+      void to.offsetWidth;             // so the animation is started, not continued
+      to.classList.add('on', 'dissolve');
+      /* the old cover is what shows through the holes, so it is only dropped
+         once there are none left. A track changed again before that happens
+         hands the frame to a newer dissolve, and this one lets go of it. */
+      to.addEventListener('animationend', () => {
+        if (gen !== artGen) return;
+        to.classList.remove('dissolve');
+        from.classList.remove('on', 'dissolve');
+      }, { once: true });
+    } else {
+      to.classList.add('enter');
+      void to.offsetWidth;             // the start state has to be a frame of its own
+      to.classList.remove('enter');
+      to.classList.add('on');
+      from.classList.remove('on');
+      from.classList.add('leave');
+    }
     artTop ^= 1;
     $('barArt').src = src;
     /* Restoring on the next frame put it back before the browser had worked out
@@ -1168,6 +1273,10 @@ function paintArt(src, cut) {
 
 /* the cover whose paint has been started but not yet shown */
 let artPending = null;
+
+/* which dissolve owns the frame; an older one finishing must not clear the
+   cover a newer one is still eating its way through */
+let artGen = 0;
 
 function setArt(url) {
   const next = url || BLANK;
@@ -2932,6 +3041,9 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {});
   });
 }
+
+/* nothing on the screen waits for it, so it goes after everything that does */
+if (window.requestIdleCallback) requestIdleCallback(bakeDissolve); else setTimeout(bakeDissolve, 400);
 
 renderSong(); renderProgress(); renderTransport(); renderFullscreen(); renderConnection();
 if (!store.data.connections.length) { renderConns(); dlg.showModal(); }
