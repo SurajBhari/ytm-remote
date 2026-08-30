@@ -132,9 +132,6 @@ img{display:block}
   user-select:none;-webkit-user-select:none;-webkit-user-drag:none;
   width:var(--art-size,100%);aspect-ratio:1;
   border-radius:var(--r-md);
-  /* the frame owns the placeholder and the depth now that two covers are
-     stacked inside it — on the images they would double during a crossfade */
-  background:#0f0f0f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%230f0f0f'/%3E%3Cg fill='none' stroke='%23303030' stroke-width='2'%3E%3Ccircle cx='60' cy='60' r='30'/%3E%3C/g%3E%3Cpath d='M52 46v28a7 7 0 1 1-4-6.3V42l24-6v24a7 7 0 1 1-4-6.3V41z' fill='%23404040'/%3E%3C/svg%3E") center/cover no-repeat;
   /* three transparent layers read as depth; one hard shadow reads as a border */
   box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.4),0 16px 48px rgba(0,0,0,.3);
   outline:1px solid var(--img-line);outline-offset:-1px;
@@ -152,6 +149,21 @@ img{display:block}
    showed the placeholder for as long as the new cover took to arrive, so a
    track change blinked; the incoming layer is decoded first and then dissolved
    over the one it replaces, which never leaves a gap. */
+/* Three covers side by side, the middle one in frame. A swipe used to throw
+   the artwork off the screen and leave a hole in the middle of the page until
+   the player answered — several hundred milliseconds of nothing where the
+   biggest thing on the page had been. The neighbours are already fetched, so
+   they can sit either side instead and be dragged into place: the cover you
+   are moving towards is on screen the whole way, and when the player confirms,
+   the rail is put back under it without anything moving. */
+.art-rail{
+  position:absolute;top:0;left:0;height:100%;width:300%;display:flex;
+  transform:translateX(-33.3333%);
+}
+.art-cell{
+  position:relative;flex:0 0 33.3333%;height:100%;
+  background:#0f0f0f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%230f0f0f'/%3E%3Cg fill='none' stroke='%23303030' stroke-width='2'%3E%3Ccircle cx='60' cy='60' r='30'/%3E%3C/g%3E%3Cpath d='M52 46v28a7 7 0 1 1-4-6.3V42l24-6v24a7 7 0 1 1-4-6.3V41z' fill='%23404040'/%3E%3C/svg%3E") center/cover no-repeat;
+}
 .art{
   position:absolute;inset:0;width:100%;height:100%;
   -webkit-user-drag:none;pointer-events:none;
@@ -610,8 +622,14 @@ body.offline .art-btn::after{content:none}
     <section class="now" id="nowPane">
       <div class="art-wrap">
         <button class="art-btn" id="artToggle" aria-label="Play" title="Play or pause (Space)">
-          <img class="art" id="art" alt="" draggable="false" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-          <img class="art" id="artB" alt="" aria-hidden="true" draggable="false" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+          <span class="art-rail" id="artRail">
+            <span class="art-cell"><img class="art on" id="artPrev" alt="" aria-hidden="true" draggable="false" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></span>
+            <span class="art-cell">
+              <img class="art" id="art" alt="" draggable="false" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+              <img class="art" id="artB" alt="" aria-hidden="true" draggable="false" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+            </span>
+            <span class="art-cell"><img class="art on" id="artNext" alt="" aria-hidden="true" draggable="false" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></span>
+          </span>
         </button>
       </div>
       <!-- rating and fullscreen move in here on a phone, as in the app;
@@ -1044,6 +1062,11 @@ function warmArt(url) {
   new Image().src = url;
 }
 
+/* the prefetch is also what fills the cells either side of the one in frame, so
+   warming the cache and having something to drag in are the same act */
+const artPrevEl = $('artPrev'), artNextEl = $('artNext');
+const setSide = (node, url) => { node.src = url || BLANK; };
+
 let warmedFor = null, leftBehind = null;
 async function warmNeighbours() {
   const s = state.song;
@@ -1052,8 +1075,11 @@ async function warmNeighbours() {
   /* the track just left is the one a swipe back lands on. It has been on the
      screen, so this is usually a cache hit costing nothing — which is the point
      of doing it rather than waiting to find out it has been evicted. */
-  warmArt(leftBehind);
+  const back = leftBehind;
   leftBehind = s.imageSrc || null;
+  warmArt(back);
+  setSide(artPrevEl, back);
+  setSide(artNextEl, null);       // whatever was next is not next any more
   const m = /=w(\d+)-h\d+/.exec(s.imageSrc || '');
   if (!m) return;                 // an address this cannot resize is not worth a guess
   /* a kilobyte to ask what is next. The queue itself is most of a megabyte,
@@ -1061,7 +1087,10 @@ async function warmNeighbours() {
   try {
     const next = await api.get('/api/v1/queue/next');
     const th = (next && next.thumbnail && next.thumbnail.thumbnails) || [];
-    if (th.length) warmArt(artAtSize(th[th.length - 1].url, m[1]));
+    if (!th.length || s.videoId !== warmedFor) return;
+    const url = artAtSize(th[th.length - 1].url, m[1]);
+    warmArt(url);
+    setSide(artNextEl, url);
   } catch {}                      // a queue that will not say is simply not warmed
 }
 
@@ -1075,9 +1104,10 @@ let artUrl = BLANK;
 
 function paintArt(src) {
   const from = artLayers[artTop], to = artLayers[artTop ^ 1];
-  /* a swipe has the cover off the screen: dissolving underneath it wastes the
-     transition and leaves the tail of it running as the new one flies in */
-  const cut = !!artFlung;
+  /* the cover a swipe carried in is already the one now playing and already in
+     frame, so the centre takes it without a dissolve — anything else would be a
+     fade nobody asked for across an image that has not changed */
+  const cut = artLanded(src);
   if (cut) { from.style.transition = 'none'; to.style.transition = 'none'; }
   to.src = src;
   to.classList.remove('leave', 'on');
@@ -1097,7 +1127,7 @@ function setArt(url) {
   const next = url || BLANK;
   /* the next track off the same album wears the same cover, so there is nothing
      to paint — but a swipe is still waiting on it */
-  if (next === artUrl) return artLanded();
+  if (next === artUrl) { artLanded(next); return; }
   artUrl = next;
   if (next === BLANK) return paintArt(BLANK);
   const pre = new Image();
@@ -2011,57 +2041,64 @@ let artDrag = null;
    vertical one still scrolls. Both values switch off double-tap-to-zoom. */
 artBtn.style.touchAction = 'pan-y';
 
-/* The swipe used to be measured only when the finger came off, so nothing on
-   screen answered while it was moving and the cover did not read as something
-   you could push. It now follows the finger and tips as it goes, and either
-   springs back or carries on off the edge — which is also the answer to
-   whether the gesture registered, before the player has said anything. */
+/* The rail carries three covers and shows the middle one. A drag moves it one
+   for one under the finger, so the cover being reached for is on screen the
+   whole way and the one being left never goes anywhere it cannot come back
+   from — the gesture is reversible until it is let go, which is what makes it
+   feel like handling the thing rather than firing a command at it. */
+const artRail = $('artRail');
+const RAIL_HOME = 'translateX(-33.3333%)';
+const RAIL_SNAP = 'transform .34s cubic-bezier(.22,.8,.24,1)';
+
+/* the drag itself is direct manipulation and always tracks; only the snap at
+   the end of it is an animation, so only that is given up */
+const stillness = matchMedia('(prefers-reduced-motion: reduce)');
+
+function railSet(dx, animate) {
+  artRail.style.transition = (animate && !stillness.matches) ? RAIL_SNAP : 'none';
+  artRail.style.transform = dx ? `translateX(calc(-33.3333% + ${dx}px))` : RAIL_HOME;
+}
+
+/* a drag that does not carry is rubber-banded rather than stopped dead, so the
+   edge of the queue is something you feel instead of something that ignores you */
 function artTransform(dx) {
   const w = artBtn.offsetWidth || 1;
-  /* the tilt is a hint that the cover is being pushed, not a measurement of how
-     far — past a few degrees it stops reading as a card and starts spinning */
-  const tilt = Math.max(-8, Math.min(8, (dx / w) * 10));
-  artBtn.style.transform = `translateX(${dx}px) rotate(${tilt}deg)`;
-  artBtn.style.opacity = String(Math.max(0.4, 1 - Math.abs(dx) / (w * 1.2)));
+  const has = dx > 0 ? artPrevEl.src !== BLANK : artNextEl.src !== BLANK;
+  railSet(has ? dx : Math.sign(dx) * Math.min(Math.abs(dx), w * 0.14) * 0.6, false);
 }
 
-const SPRING = 'transform .3s cubic-bezier(.2,.8,.2,1),opacity .3s cubic-bezier(.2,.8,.2,1)';
-
-function settleArt() {
-  artBtn.style.transition = SPRING;
-  artBtn.style.transform = '';
-  artBtn.style.opacity = '';
-}
+const settleArt = () => railSet(0, true);
 
 /* right is back, matching the direction the queue moves in */
 function flingArt(dir) {
   clearTimeout(artFlungTimer);
-  artFlung = dir;
-  artBtn.style.transition = 'transform .18s ease-out,opacity .18s ease-out';
-  artBtn.style.transform = `translateX(${dir * 65}%) rotate(${dir * 7}deg)`;
-  artBtn.style.opacity = '0';
+  /* going back, the cover before the one being landed on is not known — and
+     the one being left is now what comes next, not what came before */
+  if (dir > 0) leftBehind = null;
+  const carried = (dir > 0 ? artPrevEl : artNextEl).src !== BLANK;
   act(() => api.post(dir > 0 ? '/api/v1/previous' : '/api/v1/next'));
-  /* Off the edge it stays until the track it was pushed towards has actually
-     arrived. Bringing it back on a timer meant the cover slid in before the
-     player had answered, carrying the artwork of the song just left — so every
-     swipe looked like it had landed back on the same song. */
-  artFlungTimer = setTimeout(artLanded, 1400);
+  /* no cover on that side — the queue was never read, or it ends here. The
+     track still changes; the centre simply dissolves to it when it arrives,
+     rather than the rail sliding a blank panel in to prove a point. */
+  if (!carried) { artFlung = 0; return settleArt(); }
+  artFlung = dir;
+  railSet(dir * (artBtn.offsetWidth || 0), true);
+  /* nothing changed — the end of the queue, or repeat-one playing it again.
+     The rail comes back rather than sitting on a cover that is not playing. */
+  artFlungTimer = setTimeout(() => { artFlung = 0; railSet(0, true); }, 1400);
 }
 
-/* The replacement enters from the far side rather than fading up where the old
-   one left, so the pair reads as one shove along a row. Called by whichever
-   comes first: new artwork, a track whose artwork happens to be the same, or
-   the wait running out because nothing changed at all — the end of the queue,
-   or repeat-one playing it again. */
-function artLanded() {
-  if (!artFlung) return;
-  const dir = artFlung;
+/* The swipe has already put the new cover in frame; all that is left is to move
+   the rail back under it, which moves nothing anybody can see. Answers whether
+   the centre can take the artwork without a dissolve — true when the cover the
+   swipe carried in is the one that turned out to be playing. */
+function artLanded(src) {
+  if (!artFlung) return false;
+  const carried = (artFlung > 0 ? artPrevEl : artNextEl).src;
   artFlung = 0;
   clearTimeout(artFlungTimer); artFlungTimer = null;
-  artBtn.style.transition = 'none';
-  artBtn.style.transform = `translateX(${-dir * 30}%)`;
-  artBtn.style.opacity = '0';
-  requestAnimationFrame(() => requestAnimationFrame(settleArt));
+  railSet(0, false);
+  return carried === src;
 }
 
 /* draggable="false" and -webkit-user-drag stop it in the browsers that honour
