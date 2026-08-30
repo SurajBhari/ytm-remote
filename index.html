@@ -47,6 +47,14 @@
   --img-line:rgba(255,255,255,.1);
   --font:'Roboto',system-ui,Arial,sans-serif; /* unslop-ignore */
 }
+/* the art colours are interpolated rather than switched. an unregistered
+   custom property can only jump; registered as a colour, it animates, so the
+   whole page drifts to the new cover's hue instead of snapping to it */
+@property --accent{syntax:'<color>';inherits:true;initial-value:#ff0033}
+@property --art-bg{syntax:'<color>';inherits:true;initial-value:#0f0f0f}
+@property --bar-bg{syntax:'<color>';inherits:true;initial-value:#212121}
+:root{transition:--accent .7s ease,--art-bg .7s ease,--bar-bg .7s ease}
+@media(prefers-reduced-motion:reduce){:root{transition:none}}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{
@@ -117,9 +125,15 @@ img{display:block}
 /* the cover is the play control, so the sized box is the button and the image
    fills it; --art-size is still measured from the wrapper around them */
 .art-btn{
-  display:block;position:relative;
+  display:block;position:relative;overflow:hidden;
   width:var(--art-size,100%);aspect-ratio:1;
   border-radius:var(--r-md);
+  /* the frame owns the placeholder and the depth now that two covers are
+     stacked inside it — on the images they would double during a crossfade */
+  background:#0f0f0f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%230f0f0f'/%3E%3Cg fill='none' stroke='%23303030' stroke-width='2'%3E%3Ccircle cx='60' cy='60' r='30'/%3E%3C/g%3E%3Cpath d='M52 46v28a7 7 0 1 1-4-6.3V42l24-6v24a7 7 0 1 1-4-6.3V41z' fill='%23404040'/%3E%3C/svg%3E") center/cover no-repeat;
+  /* three transparent layers read as depth; one hard shadow reads as a border */
+  box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.4),0 16px 48px rgba(0,0,0,.3);
+  outline:1px solid var(--img-line);outline-offset:-1px;
 }
 /* a scrim rather than an icon: enough to say the cover is pressable without
    parking a glyph on the artwork. touch has no hover to show it with */
@@ -130,13 +144,26 @@ img{display:block}
 }
 .art-btn:hover::after,.art-btn:focus-visible::after{opacity:1}
 @media(hover:none){.art-btn::after{content:none}}
+/* two stacked covers rather than one whose src is replaced. Swapping the src
+   showed the placeholder for as long as the new cover took to arrive, so a
+   track change blinked; the incoming layer is decoded first and then dissolved
+   over the one it replaces, which never leaves a gap. */
 .art{
-  display:block;width:100%;height:100%;
+  position:absolute;inset:0;width:100%;height:100%;
   border-radius:inherit;object-fit:cover;
-  background:#0f0f0f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%230f0f0f'/%3E%3Cg fill='none' stroke='%23303030' stroke-width='2'%3E%3Ccircle cx='60' cy='60' r='30'/%3E%3C/g%3E%3Cpath d='M52 46v28a7 7 0 1 1-4-6.3V42l24-6v24a7 7 0 1 1-4-6.3V41z' fill='%23404040'/%3E%3C/svg%3E") center/cover no-repeat;
-  /* three transparent layers read as depth; one hard shadow reads as a border */
-  box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.4),0 16px 48px rgba(0,0,0,.3);
-  outline:1px solid var(--img-line);outline-offset:-1px;
+  opacity:0;
+  transition:opacity .5s cubic-bezier(.2,0,0,1),
+             scale .8s cubic-bezier(.2,0,0,1),
+             filter .5s cubic-bezier(.2,0,0,1);
+}
+.art.on{opacity:1;scale:1;filter:none}
+/* the arriving cover resolves out of a blur; the one it replaces melts back
+   into the frame, so the two read as one image changing rather than two */
+.art.enter{scale:1.06;filter:blur(14px) saturate(1.3)}
+.art.leave{scale:.97;filter:blur(10px)}
+@media(prefers-reduced-motion:reduce){
+  .art{transition:opacity .2s linear}
+  .art.enter,.art.leave{scale:1;filter:none}
 }
 /* action pills under the artwork; the phone layout only. the pill shape is the
    reference app's own, not a default. unslop-ignore */
@@ -290,10 +317,8 @@ img{display:block}
    the name and the credits are two separate pieces of information, so they
    arrive 60ms apart rather than as one block appearing at once */
 @keyframes rise{from{opacity:0;translate:0 8px}to{opacity:1;translate:0 0}}
-@keyframes settle{from{opacity:0;scale:.98}to{opacity:1;scale:1}}
 .txt.swap>*{animation:rise .32s cubic-bezier(.2,0,0,1) both}
 .txt.swap>*:nth-child(2){animation-delay:60ms}
-.art.swap{animation:settle .4s cubic-bezier(.2,0,0,1) both}
 
 .field{
   background:var(--surface);border:1px solid transparent;border-radius:var(--r-md);
@@ -572,6 +597,7 @@ body.offline .art-btn::after{content:none}
       <div class="art-wrap">
         <button class="art-btn" id="artToggle" aria-label="Play" title="Play or pause (Space)">
           <img class="art" id="art" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+          <img class="art" id="artB" alt="" aria-hidden="true" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
         </button>
       </div>
       <!-- rating and fullscreen move in here on a phone, as in the app;
@@ -979,11 +1005,43 @@ let animatedFor = null;
 function animateSwap(videoId) {
   if (!videoId || videoId === animatedFor) return;
   animatedFor = videoId;
-  for (const node of [document.querySelector('.pb-track .txt'), $('art')]) {
-    node.classList.remove('swap');
-    void node.offsetWidth;
-    node.classList.add('swap');
-  }
+  const node = document.querySelector('.pb-track .txt');
+  node.classList.remove('swap');
+  void node.offsetWidth;
+  node.classList.add('swap');
+}
+
+/* The cover crossfades between two stacked layers. The new one is decoded
+   before anything moves, so the frame never falls back to the placeholder
+   while it downloads, and a track changed twice in quick succession only
+   shows the one that actually won — each load checks it is still wanted. */
+const artLayers = [$('art'), $('artB')];
+let artTop = 0;
+let artUrl = BLANK;
+
+function paintArt(src) {
+  const from = artLayers[artTop], to = artLayers[artTop ^ 1];
+  to.src = src;
+  to.classList.remove('leave', 'on');
+  to.classList.add('enter');
+  void to.offsetWidth;                 // the start state has to be a frame of its own
+  to.classList.remove('enter');
+  to.classList.add('on');
+  from.classList.remove('on');
+  from.classList.add('leave');
+  artTop ^= 1;
+  $('barArt').src = src;
+}
+
+function setArt(url) {
+  const next = url || BLANK;
+  if (next === artUrl) return;
+  artUrl = next;
+  if (next === BLANK) return paintArt(BLANK);
+  const pre = new Image();
+  const go = () => { if (artUrl === next) paintArt(next); };
+  pre.src = next;
+  if (pre.decode) pre.decode().then(go, go); else pre.onload = pre.onerror = go;
 }
 
 /* The player sends no album address, so the album falls back to a search, which
@@ -1003,7 +1061,7 @@ function renderSong() {
   const s = state.song;
   const sub = $('barSub');
   if (!s) {
-    $('art').src = BLANK; $('barArt').src = BLANK;
+    setArt(null);
     $('barTitle').textContent = connected ? 'Nothing playing' : 'Not connected';
     sub.textContent = connected ? 'Start a song in YouTube Music' : 'Add your player under Connections';
     applyTheme(null);
@@ -1032,8 +1090,7 @@ function renderSong() {
   }
   if (year) part(document.createTextNode(year));
 
-  const art = s.imageSrc || BLANK;
-  $('art').src = art; $('barArt').src = art;
+  setArt(s.imageSrc);
   themeFromArt(s.imageSrc);
   animateSwap(s.videoId);
 }
@@ -1067,8 +1124,27 @@ function setPaused(next) {
   state.paused = next;
 }
 
+/* A seek is applied here first and posted second, so for a moment the player
+   is still reporting the position we just left. Believing that reading pulled
+   the bar — and the notification's scrubber — straight back to where it was,
+   which is what "seeking does nothing" looked like. The local position holds
+   until the player has had time to move. A track change overrules it. */
+let seekAt = 0;
+const SEEK_HOLD = 1500;
+
+function localSeek(secs) {
+  const d = state.duration;
+  state.elapsed = Math.max(0, d ? Math.min(secs, d) : secs);
+  state.at = performance.now();
+  seekAt = state.at;
+  renderProgress();
+  updateMediaSession();
+}
+
 function applyPosition(reported, force) {
   if (typeof reported !== 'number' || !isFinite(reported) || reported < 0) return;
+  if (force) seekAt = 0;
+  else if (seekAt && performance.now() - seekAt < SEEK_HOLD) return;
   /* The player sometimes reports a position past the end of the track and holds
      it there — a 295 second song came back as 1273, repeatedly. Stored, that
      reading is clamped to the duration on the way out and the bar sits at the
@@ -1244,7 +1320,7 @@ function openSocket() {
           renderSong();
           if (tab === 'queue') loadQueue(true);
           if (tab === 'lyrics') loadLyrics();
-        } else if (m.song.imageSrc && !document.getElementById('art').src.startsWith(m.song.imageSrc)) {
+        } else if (m.song.imageSrc && m.song.imageSrc !== artUrl) {
           renderSong();
         }
       }
@@ -1904,7 +1980,7 @@ track.addEventListener('pointerup', (e) => {
   if (!scrubbing) return;
   scrubbing = false; track.classList.remove('live');
   const secs = posFromEvent(e);
-  state.elapsed = secs; state.at = performance.now();
+  localSeek(secs);
   act(() => api.post('/api/v1/seek-to', { seconds: Math.round(secs) }));
 });
 track.addEventListener('keydown', (e) => {
@@ -2160,7 +2236,9 @@ function wireMediaHandlers() {
   on('seekforward', (d) => act(() => api.post('/api/v1/go-forward', { seconds: (d && d.seekOffset) || store.data.seekStep })));
   on('seekto', (d) => {
     if (!d || typeof d.seekTime !== 'number') return;
-    state.elapsed = d.seekTime; state.at = performance.now(); renderProgress();
+    /* the OS wants the position state to agree with the drag it just finished
+       before the round trip; without this the scrubber springs back */
+    localSeek(d.seekTime);
     act(() => api.post('/api/v1/seek-to', { seconds: Math.round(d.seekTime) }));
   });
 }
@@ -2206,14 +2284,19 @@ function updateMediaSession() {
      action, and the track can never be resumed from there. */
   if (state.paused && !hold.paused) hold.pause();
   else if (!state.paused && hold.paused) hold.play().catch(() => {});
-  if (state.duration) {
+  /* setPositionState throws on anything inconsistent and an OS given nothing
+     draws a scrubber that cannot be dragged, so the numbers are clamped into
+     agreement rather than passed on as they arrive */
+  if (state.duration > 0 && isFinite(state.duration)) {
     try {
       ms.setPositionState({
         duration: state.duration,
-        position: Math.min(currentElapsed(), state.duration),
+        position: Math.max(0, Math.min(currentElapsed(), state.duration)),
         playbackRate: 1
       });
     } catch {}
+  } else {
+    try { ms.setPositionState(); } catch {}
   }
 }
 
@@ -2296,6 +2379,25 @@ async function syncWakeLock() {
 
 /* ---------------- boot ---------------- */
 let songTimer, auxTimer, queueTimer;
+/* the last time the one second timer actually ran, and the last poll it sent */
+let lastTick = 0, lastPoll = 0;
+
+/* Everything this page knows arrives over a socket or a poll, and a tab left in
+   the background loses both: the system parks the timers and drops the socket
+   without ever telling the page, which then came back showing the track that
+   was playing when it went away — and told the OS the same, so the notification
+   was stale too. Coming back from that, or noticing the timer has been asleep,
+   throws the socket away and starts again rather than trusting either. */
+function revive() {
+  if (!active()) return;
+  wsRetry = 0;
+  closeSocket();
+  openSocket();
+  lastPoll = 0;
+  pollSong(); pollAux();
+  if (!document.hidden && tab === 'queue') loadQueue(true);
+}
+
 function connect() {
   clearInterval(songTimer); clearInterval(auxTimer); clearInterval(queueTimer);
   connected = false;
@@ -2314,8 +2416,20 @@ function connect() {
   /* a socket that is delivering already carries everything this asks for, so the
      poll stands down while it is talking and takes over on its own the moment it
      goes quiet — no flag to keep in step with the connection state */
+  lastTick = 0; lastPoll = 0;
   songTimer = setInterval(() => {
-    if (document.hidden || performance.now() - lastPush < 3000) return;
+    const now = performance.now();
+    /* a tick that is a quarter of a minute late means the tab was frozen or the
+       machine slept — whatever the socket says about itself, it is not live */
+    if (lastTick && now - lastTick > 15000) { lastTick = now; return revive(); }
+    lastTick = now;
+    if (now - lastPush < 3000) return;
+    /* the page used to stand down entirely while hidden, which is exactly when
+       nothing else was watching: a socket that died in the background left the
+       OS controls showing a track that had long since finished. Backgrounded it
+       polls slowly instead of not at all, so the notification stays honest. */
+    if (now - lastPoll < (document.hidden ? 5000 : 1000)) return;
+    lastPoll = now;
     pollSong();
   }, 1000);
   auxTimer = setInterval(() => { if (!document.hidden) pollAux(); }, 4000);
@@ -2331,15 +2445,27 @@ requestAnimationFrame(frame);
 
 document.addEventListener('visibilitychange', () => {
   syncWakeLock();
-  if (!document.hidden && active()) { pollSong(); pollAux(); }
+  if (document.hidden || !active()) return;
+  lastTick = performance.now();
+  /* readyState is the only honest answer here; a socket the system closed while
+     the page was parked still looks like an object worth keeping */
+  if (!ws || ws.readyState !== WebSocket.OPEN) revive();
+  else { lastPoll = 0; pollSong(); pollAux(); }
 });
+
+/* Chrome freezes a backgrounded tab outright and thaws it here. Nothing ran in
+   between, so the same recovery applies. `pageshow` covers the back/forward
+   cache, and `online` the network coming back under a page that never moved. */
+document.addEventListener('resume', revive);
+addEventListener('pageshow', (e) => { if (e.persisted) revive(); });
+addEventListener('online', revive);
 
 /* artwork that fails to load falls back to the placeholder instead of a broken icon
    (error does not bubble, so this listens during capture) */
 document.addEventListener('error', (e) => {
   const t = e.target;
   if (!t || t.tagName !== 'IMG' || t.src === BLANK) return;
-  if (t.id === 'art' || t.id === 'barArt') t.src = BLANK; else t.remove();
+  if (t.classList.contains('art') || t.id === 'barArt') t.src = BLANK; else t.remove();
 }, true);
 
 /* Installs the page as a home screen app and lets it open without a network.
