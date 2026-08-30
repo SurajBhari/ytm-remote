@@ -126,6 +126,10 @@ img{display:block}
    fills it; --art-size is still measured from the wrapper around them */
 .art-btn{
   display:block;position:relative;overflow:hidden;
+  /* a cover is an image, and a mouse pressed on an image starts the browser's
+     own drag — which swallows the pointer stream, so the swipe never saw a
+     single move event on a desktop */
+  user-select:none;-webkit-user-select:none;-webkit-user-drag:none;
   width:var(--art-size,100%);aspect-ratio:1;
   border-radius:var(--r-md);
   /* the frame owns the placeholder and the depth now that two covers are
@@ -150,6 +154,7 @@ img{display:block}
    over the one it replaces, which never leaves a gap. */
 .art{
   position:absolute;inset:0;width:100%;height:100%;
+  -webkit-user-drag:none;pointer-events:none;
   border-radius:inherit;object-fit:cover;
   opacity:0;
   transition:opacity .5s cubic-bezier(.2,0,0,1),
@@ -274,6 +279,15 @@ img{display:block}
 .row .t{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .s{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .dur{font-size:12px;color:var(--text-3);flex:none}
+/* the play count is what the section is ordered by, so unlike the length it
+   holds its column at every width rather than being the first thing dropped */
+.row .cnt{font-size:12px;color:var(--text-3);flex:none;font-variant-numeric:tabular-nums}
+/* ---- search sections ---- */
+.sec{display:flex;align-items:baseline;gap:8px;padding:16px 4px 4px}
+.sec:first-child{padding-top:2px}
+.sec h3{margin:0;font-size:13px;font-weight:500}
+.sec .n{font-size:12px;color:var(--text-3)}
+.sec-more{padding:4px 4px 0}
 /* 8px between 32px buttons is what makes their 40px hit areas meet exactly
    rather than overlap */
 .row .acts{display:flex;gap:8px;flex:none;opacity:0;transition:opacity .12s cubic-bezier(.2,0,0,1)}
@@ -596,8 +610,8 @@ body.offline .art-btn::after{content:none}
     <section class="now" id="nowPane">
       <div class="art-wrap">
         <button class="art-btn" id="artToggle" aria-label="Play" title="Play or pause (Space)">
-          <img class="art" id="art" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-          <img class="art" id="artB" alt="" aria-hidden="true" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+          <img class="art" id="art" alt="" draggable="false" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+          <img class="art" id="artB" alt="" aria-hidden="true" draggable="false" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
         </button>
       </div>
       <!-- rating and fullscreen move in here on a phone, as in the app;
@@ -1470,7 +1484,8 @@ addEventListener('pointercancel', () => endDrag(false));
 const ICON = {
   up: 'M12 8l6 6H6z', down: 'M12 16l-6-6h12z',
   close: 'M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z',
-  next: 'M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-9v7.2a3 3 0 1 0 2 2.8V9h3V7z'
+  next: 'M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-9v7.2a3 3 0 1 0 2 2.8V9h3V7z',
+  open: 'M14 3v2h3.6l-9.8 9.8 1.4 1.4L19 6.4V10h2V3zM19 19H5V5h6V3H3v18h18v-8h-2z'
 };
 
 function queueRow(t, i) {
@@ -1750,7 +1765,30 @@ function collect(node, key, out) {
 const queueNext = (videoId) =>
   api.post('/api/v1/queue', { videoId, insertPosition: 'INSERT_AFTER_CURRENT_VIDEO' });
 
-function searchResults(data) {
+/* One search is three: YouTube Music will only give a section its proper
+   columns when it is asked for that section alone. Unfiltered, a song comes
+   back as "Song · Artist" with no album and no length, and the results arrive
+   as one list with artists, podcasts and profiles mixed through the tracks.
+   Asked for songs, the same track carries its album, its length and its play
+   count. The params are the search page's own filter chips, read back out of
+   a response. */
+const SEARCH_SECTIONS = [
+  { key: 'songs',   label: 'Songs',   params: 'EgWKAQIIAWoSEAMQCRAEEAUQChAQEBUQERAO' },
+  { key: 'artists', label: 'Artists', params: 'EgWKAQIgAWoSEAMQCRAEEAUQChAQEBUQERAO' },
+  { key: 'videos',  label: 'Videos',  params: 'EgWKAQIQAWoSEAMQCRAEEAUQChAQEBUQERAO' }
+];
+const SEARCH_PEEK = 3;
+
+/* "3.6B plays", "22M views", "265M monthly audience", "1,650 subscribers" —
+   one number under four names, which is what each section is ranked on. */
+const COUNT_UNIT = { k: 1e3, m: 1e6, b: 1e9 };
+function countOf(text) {
+  const m = /([\d.,]+)\s*([KMB])?\s*(?:plays|views|monthly audience|subscribers)/i.exec(text || '');
+  if (!m) return 0;
+  return (parseFloat(m[1].replace(/,/g, '')) || 0) * (COUNT_UNIT[(m[2] || '').toLowerCase()] || 1);
+}
+
+function searchResults(data, kind) {
   const raw = collect(data, 'musicResponsiveListItemRenderer', []);
   const seen = new Set(), out = [];
   for (const it of raw) {
@@ -1764,55 +1802,140 @@ function searchResults(data) {
        ov.content.musicPlayButtonRenderer.playNavigationEndpoint &&
        ov.content.musicPlayButtonRenderer.playNavigationEndpoint.watchEndpoint &&
        ov.content.musicPlayButtonRenderer.playNavigationEndpoint.watchEndpoint.videoId);
-    if (!videoId || seen.has(videoId)) continue;
-    seen.add(videoId);
+    /* an artist has no track to queue, so the channel it points at is both its
+       identity here and the only thing that can be done with it */
+    const browse = videoId ? null : ((collect(it, 'browseEndpoint', [])[0] || {}).browseId || null);
+    const id = videoId || browse;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
     const th = (it.thumbnail && it.thumbnail.musicThumbnailRenderer && it.thumbnail.musicThumbnailRenderer.thumbnail &&
                 it.thumbnail.musicThumbnailRenderer.thumbnail.thumbnails) || [];
+    const line = (from, to) => cols.slice(from, to).filter(Boolean).join(' · ').replace(/\s*•\s*/g, ' · ');
+    /* a song carries its count in a column of its own; a video keeps it inside
+       its credits line, where it already reads, so it is not repeated */
+    const meta = kind === 'songs' ? (cols[2] || '') : '';
     out.push({
-      videoId,
+      videoId: videoId || null,
+      browseId: browse,
       title: cols[0] || 'Untitled',
-      sub: cols.slice(1).filter(Boolean).join(' · ').replace(/\s*•\s*/g, ' · '),
+      sub: meta ? line(1, 2) : line(1),
+      meta,
+      count: countOf(cols.slice(1).join(' ')),
       thumb: th.length ? th[0].url : ''
     });
   }
-  return out;
+  /* ranked by how much the world has played it rather than by what the search
+     thought was nearest, which is the point of splitting the sections up */
+  return out.sort((a, b) => b.count - a.count);
 }
 
+let searchFound = null;                 // key -> results, or null before a search
+let searchDone = false;                 // every section has answered
+const searchOpen = {};                  // key -> showing all of them
+
+function searchRow(t) {
+  const row = el('div', 'row');
+  if (t.thumb) { const im = el('img'); im.src = t.thumb; im.alt = ''; im.loading = 'lazy'; row.appendChild(im); }
+  const txt = el('div', 'txt');
+  txt.appendChild(el('div', 't', t.title));
+  txt.appendChild(el('div', 's', t.sub));
+  row.appendChild(txt);
+  if (t.meta) row.appendChild(el('div', 'cnt', t.meta));
+
+  const b = el('button');
+  let go;
+  if (t.videoId) {
+    go = () => act(() => queueNext(t.videoId), 'Playing next: ' + t.title);
+    b.title = 'Play next';
+    b.setAttribute('aria-label', 'Play next: ' + t.title);
+    b.appendChild(svg(ICON.next));
+  } else {
+    /* nothing here can put an artist on the queue, so the row offers what it
+       can instead of looking like a track that refuses to play */
+    const href = 'https://music.youtube.com/channel/' + encodeURIComponent(t.browseId);
+    go = () => window.open(href, '_blank', 'noopener');
+    b.title = 'Open on YouTube Music';
+    b.setAttribute('aria-label', 'Open ' + t.title + ' on YouTube Music');
+    b.appendChild(svg(ICON.open));
+  }
+  b.onclick = (e) => { e.stopPropagation(); go(); };
+  row.onclick = go;
+  const acts = el('div', 'acts');
+  acts.appendChild(b);
+  row.appendChild(acts);
+  return row;
+}
+
+/* Three of each is enough to see whether the search understood you; the rest
+   is there for when it did not. Rebuilt whole on every toggle — a search
+   result has no state of its own worth preserving across one. */
+function renderSearch() {
+  const list = $('searchList');
+  if (!searchFound) return;
+  const frag = document.createDocumentFragment();
+  let any = false;
+  for (const sec of SEARCH_SECTIONS) {
+    const all = searchFound[sec.key] || [];
+    if (!all.length) continue;
+    any = true;
+    const head = el('div', 'sec');
+    head.appendChild(el('h3', null, sec.label));
+    head.appendChild(el('span', 'n', String(all.length)));
+    frag.appendChild(head);
+    const open = !!searchOpen[sec.key];
+    for (const t of (open ? all : all.slice(0, SEARCH_PEEK))) frag.appendChild(searchRow(t));
+    if (all.length > SEARCH_PEEK) {
+      const wrap = el('div', 'sec-more');
+      const b = el('button', 'txtbtn', open ? 'See less' : 'See more');
+      b.onclick = () => { searchOpen[sec.key] = !open; renderSearch(); };
+      wrap.appendChild(b);
+      frag.appendChild(wrap);
+    }
+  }
+  if (!any) {
+    /* the sections land one at a time, and an empty one is only news once the
+       others have had their turn */
+    if (!searchDone) return;
+    const e = el('div', 'empty');
+    e.appendChild(el('strong', null, 'Nothing found'));
+    e.appendChild(document.createTextNode('Try a different spelling, or paste a video ID.'));
+    return list.replaceChildren(e);
+  }
+  list.replaceChildren(frag);
+}
+
+/* The player answers one search at a time. Asked for all three at once it
+   returns whichever ran last three times over — three identical lists under
+   three different headings — so the sections are asked for in turn, and each
+   is drawn as it lands rather than after the other two. */
+let searchSeq = 0;
 async function runSearch(q) {
   const list = $('searchList');
+  const mine = ++searchSeq;
   list.replaceChildren(el('div', 'empty', 'Searching…'));
-  try {
-    const items = searchResults(await api.post('/api/v1/search', { query: q }));
-    if (!items.length) {
-      const e = el('div', 'empty');
-      e.appendChild(el('strong', null, 'No tracks found'));
-      e.appendChild(document.createTextNode('Try a different spelling, or paste a video ID.'));
-      list.replaceChildren(e);
-      return;
+  for (const sec of SEARCH_SECTIONS) searchOpen[sec.key] = false;
+  searchFound = {};
+  searchDone = false;
+  let answered = 0, failure = null;
+  for (const sec of SEARCH_SECTIONS) {
+    try {
+      const data = await api.post('/api/v1/search', { query: q, params: sec.params });
+      if (mine !== searchSeq) return;             // a newer search owns the pane
+      searchFound[sec.key] = searchResults(data, sec.key);
+      answered++;
+      renderSearch();
+    } catch (e) {
+      if (mine !== searchSeq) return;
+      failure = e;                                // one section short, not a dead search
     }
-    const frag = document.createDocumentFragment();
-    for (const t of items) {
-      const row = el('div', 'row');
-      if (t.thumb) { const im = el('img'); im.src = t.thumb; im.alt = ''; im.loading = 'lazy'; row.appendChild(im); }
-      const txt = el('div', 'txt');
-      txt.appendChild(el('div', 't', t.title));
-      txt.appendChild(el('div', 's', t.sub));
-      row.appendChild(txt);
-      const acts = el('div', 'acts');
-      const b = el('button');
-      b.title = 'Play next'; b.setAttribute('aria-label', 'Play next: ' + t.title);
-      b.appendChild(svg(ICON.next));
-      b.onclick = (e) => { e.stopPropagation(); act(() => queueNext(t.videoId), 'Playing next: ' + t.title); };
-      acts.appendChild(b);
-      row.appendChild(acts);
-      row.onclick = () => act(() => queueNext(t.videoId), 'Playing next: ' + t.title);
-      frag.appendChild(row);
-    }
-    list.replaceChildren(frag);
-  } catch (e) {
-    handleErr(e);
-    list.replaceChildren(el('div', 'empty', 'Search failed. Check the player connection.'));
   }
+  searchDone = true;
+  if (!answered) {
+    handleErr(failure);
+    searchFound = null;
+    return list.replaceChildren(el('div', 'empty', 'Search failed. Check the player connection.'));
+  }
+  renderSearch();
 }
 
 /* ---------------- controls ---------------- */
@@ -1829,26 +1952,96 @@ $('bPlay').onclick = () => {
    touch and pen only; a mouse click stays immediate and the keyboard already
    covers seeking on a desktop. */
 const artBtn = $('artToggle');
-const SWIPE = 48, DOUBLE_TAP = 300;
+const SWIPE = 48, DOUBLE_TAP = 300, DRAG_START = 8;
 let tapTimer = null, lastTapAt = 0, gestureAt = 0;
+let artDrag = null;
 
-artBtn.style.touchAction = 'manipulation';   // no double-tap-to-zoom to fight with
+/* pan-y rather than manipulation: a sideways drag has to reach this handler
+   instead of being spent on a scroll the page cannot do anyway, while a
+   vertical one still scrolls. Both values switch off double-tap-to-zoom. */
+artBtn.style.touchAction = 'pan-y';
+
+/* The swipe used to be measured only when the finger came off, so nothing on
+   screen answered while it was moving and the cover did not read as something
+   you could push. It now follows the finger and tips as it goes, and either
+   springs back or carries on off the edge — which is also the answer to
+   whether the gesture registered, before the player has said anything. */
+function artTransform(dx) {
+  const w = artBtn.offsetWidth || 1;
+  /* the tilt is a hint that the cover is being pushed, not a measurement of how
+     far — past a few degrees it stops reading as a card and starts spinning */
+  const tilt = Math.max(-8, Math.min(8, (dx / w) * 10));
+  artBtn.style.transform = `translateX(${dx}px) rotate(${tilt}deg)`;
+  artBtn.style.opacity = String(Math.max(0.4, 1 - Math.abs(dx) / (w * 1.2)));
+}
+
+const SPRING = 'transform .3s cubic-bezier(.2,.8,.2,1),opacity .3s cubic-bezier(.2,.8,.2,1)';
+
+function settleArt() {
+  artBtn.style.transition = SPRING;
+  artBtn.style.transform = '';
+  artBtn.style.opacity = '';
+}
+
+/* right is back, matching the direction the queue moves in */
+function flingArt(dir) {
+  artBtn.style.transition = 'transform .18s ease-out,opacity .18s ease-out';
+  artBtn.style.transform = `translateX(${dir * 65}%) rotate(${dir * 7}deg)`;
+  artBtn.style.opacity = '0';
+  act(() => api.post(dir > 0 ? '/api/v1/previous' : '/api/v1/next'));
+  /* the replacement comes in from the far side rather than fading up where the
+     old one left, so the pair reads as one shove along a row */
+  setTimeout(() => {
+    artBtn.style.transition = 'none';
+    artBtn.style.transform = `translateX(${-dir * 30}%)`;
+    artBtn.style.opacity = '0';
+    requestAnimationFrame(() => requestAnimationFrame(settleArt));
+  }, 180);
+}
+
+/* draggable="false" and -webkit-user-drag stop it in the browsers that honour
+   them; this is the one that works everywhere, and it also clears the gesture
+   left dangling by a drag that started before any of them could. */
+artBtn.addEventListener('dragstart', (e) => { e.preventDefault(); artDrag = null; });
 
 artBtn.addEventListener('pointerdown', (e) => {
-  if (e.pointerType === 'mouse') return;
-  artBtn._from = { x: e.clientX, y: e.clientY };
+  if (e.button > 0) return;
+  artDrag = { x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse', moved: false };
 });
 
-artBtn.addEventListener('pointerup', (e) => {
-  const from = artBtn._from;
-  if (e.pointerType === 'mouse' || !from) return;
-  artBtn._from = null;
-  gestureAt = performance.now();            // the click that follows is ours
-  const dx = e.clientX - from.x, dy = e.clientY - from.y;
+/* on the window rather than the cover: a fast drag leaves the cover behind
+   between two frames, and pointer capture cannot be claimed until the gesture
+   has been recognised — which is exactly what those first moves are for */
+addEventListener('pointermove', (e) => {
+  const d = artDrag;
+  if (!d || e.pointerId !== d.id) return;
+  const dx = e.clientX - d.x, dy = e.clientY - d.y;
+  if (!d.moved) {
+    if (Math.abs(dx) < DRAG_START || Math.abs(dx) <= Math.abs(dy)) return;
+    d.moved = true;
+    clearTimeout(tapTimer); tapTimer = null; lastTapAt = 0;
+    try { artBtn.setPointerCapture(e.pointerId); } catch {}
+    artBtn.style.transition = 'none';
+  }
+  artTransform(dx);
+});
 
+addEventListener('pointerup', (e) => {
+  const d = artDrag;
+  if (!d || e.pointerId !== d.id) return;
+  artDrag = null;
+  const dx = e.clientX - d.x, dy = e.clientY - d.y;
+
+  if (d.moved) {
+    gestureAt = performance.now();          // the click that follows is ours
+    return Math.abs(dx) > SWIPE ? flingArt(dx > 0 ? 1 : -1) : settleArt();
+  }
+  /* a mouse that has not dragged is a plain click, and onclick has it */
+  if (!d.touch) return;
+  gestureAt = performance.now();
   if (Math.abs(dx) > SWIPE && Math.abs(dx) > Math.abs(dy)) {
     clearTimeout(tapTimer); tapTimer = null; lastTapAt = 0;
-    return act(() => api.post(dx > 0 ? '/api/v1/previous' : '/api/v1/next'));
+    return flingArt(dx > 0 ? 1 : -1);
   }
   const now = performance.now();
   if (now - lastTapAt < DOUBLE_TAP) {
@@ -1860,7 +2053,12 @@ artBtn.addEventListener('pointerup', (e) => {
   tapTimer = setTimeout(() => { tapTimer = null; lastTapAt = 0; $('bPlay').click(); }, DOUBLE_TAP - 40);
 });
 
-artBtn.addEventListener('pointercancel', () => { artBtn._from = null; });
+addEventListener('pointercancel', (e) => {
+  const d = artDrag;
+  if (!d || e.pointerId !== d.id) return;
+  artDrag = null;
+  if (d.moved) settleArt();
+});
 
 artBtn.onclick = () => {
   if (performance.now() - gestureAt < 700) return;   // a touch gesture handled it
