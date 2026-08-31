@@ -40,7 +40,7 @@
   /* rows are 4px art inside 8px padding, dialogs 8px cards inside 12px padding */
   --r-row:12px;
   --r-lg:20px;
-  /* unslop-ignore — circular transport buttons are the reference UI's own shape */
+  /* unslop-ignore -- circular transport buttons are the reference UI's own shape */
   --r-round:50%;
   /* every image gets the same hairline so covers of any brightness sit on the
      surface the same way */
@@ -147,7 +147,7 @@ img{display:block}
 .art-btn{
   display:block;position:relative;overflow:hidden;
   /* a cover is an image, and a mouse pressed on an image starts the browser's
-     own drag — which swallows the pointer stream, so the swipe never saw a
+     own drag -- which swallows the pointer stream, so the swipe never saw a
      single move event on a desktop */
   user-select:none;-webkit-user-select:none;-webkit-user-drag:none;
   width:var(--art-size,100%);aspect-ratio:1;
@@ -171,7 +171,7 @@ img{display:block}
    over the one it replaces, which never leaves a gap. */
 /* Three covers side by side, the middle one in frame. A swipe used to throw
    the artwork off the screen and leave a hole in the middle of the page until
-   the player answered — several hundred milliseconds of nothing where the
+   the player answered -- several hundred milliseconds of nothing where the
    biggest thing on the page had been. The neighbours are already fetched, so
    they can sit either side instead and be dragged into place: the cover you
    are moving towards is on screen the whole way, and when the player confirms,
@@ -364,7 +364,7 @@ img{display:block}
 .row.playing .idx{color:var(--accent)}
 /* On a phone the row runs out of width before the title does: the three
    buttons hold 112px whatever the screen, and touch cannot give them up
-   because it has no drag. The length is the column that yields — the player
+   because it has no drag. The length is the column that yields -- the player
    bar carries it for the track that is playing, and the rest are a tap away. */
 @media(max-width:420px){
   .row{gap:8px}
@@ -483,7 +483,7 @@ img{display:block}
   -webkit-appearance:none;appearance:none;background:none;width:80px;height:40px;cursor:pointer;
 }
 .vol input::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
-/* (4 - 12) / 2 — the thumb straddles the rail instead of hanging off it */
+/* (4 - 12) / 2 -- the thumb straddles the rail instead of hanging off it */
 .vol input::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--text);margin-top:-4px;border:none}
 .vol input::-moz-range-track{height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
 .vol input::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--text)}
@@ -801,7 +801,7 @@ body.offline .art-btn::after{content:none}
           <input class="field" id="newUrl" placeholder="http://localhost:26538" value="http://localhost:26538">
           <input class="field" id="newName" placeholder="Desktop">
         </div>
-        <input class="field" id="newToken" placeholder="Access token — leave blank to request one">
+        <input class="field" id="newToken" placeholder="Access token -- leave blank to request one">
         <button class="pill" id="bAddConn">Add and connect</button>
       </div>
     </div>
@@ -1018,7 +1018,7 @@ let volDragging = false;
 
 /* GET and POST /volume speak different scales. The player reports a perceptual
    value but accepts a raw one, so echoing a reading straight back collapses the
-   level — measured 60 then 29 then 8 then 1 on repeat. The slider therefore
+   level -- measured 60 then 29 then 8 then 1 on repeat. The slider therefore
    holds a command value we own: seeded once from the player through the inverse
    of its curve, and never overwritten by a later reading. */
 const VOL_CURVE = 2.5;
@@ -1097,7 +1097,7 @@ function animateSwap(videoId) {
 }
 
 /* A swipe can land no faster than the cover it is reaching for can be fetched,
-   and the first sight of one is always a download — which is most of the wait
+   and the first sight of one is always a download -- which is most of the wait
    the artwork now sits out at the edge of the screen. Both neighbours are
    pulled into the browser's cache while the current track plays, so arriving is
    a decode rather than a round trip.
@@ -1121,7 +1121,7 @@ const artPrevEl = $('artPrev'), artNextEl = $('artNext');
 const setSide = (node, url) => { node.src = url || BLANK; };
 
 /* A swipe parks the rail on one of these cells, and the track change it caused
-   is what rewrites them — so emptying one the moment the new track is known
+   is what rewrites them -- so emptying one the moment the new track is known
    blanks the very cover the finger just dragged into place. While a swipe is
    still landing the writes are held; the landing lets them through, by which
    time the cell is off the screen again and nothing of it can be seen. */
@@ -1142,7 +1142,7 @@ async function warmNeighbours() {
   if (!s || !s.videoId || s.videoId === warmedFor) return;
   warmedFor = s.videoId;
   /* the track just left is the one a swipe back lands on. It has been on the
-     screen, so this is usually a cache hit costing nothing — which is the point
+     screen, so this is usually a cache hit costing nothing -- which is the point
      of doing it rather than waiting to find out it has been evicted. */
   const back = leftBehind;
   leftBehind = s.imageSrc || null;
@@ -1166,7 +1166,7 @@ async function warmNeighbours() {
 /* The cover crossfades between two stacked layers. The new one is decoded
    before anything moves, so the frame never falls back to the placeholder
    while it downloads, and a track changed twice in quick succession only
-   shows the one that actually won — each load checks it is still wanted. */
+   shows the one that actually won -- each load checks it is still wanted. */
 const artLayers = [$('art'), $('artB')];
 let artTop = 0;
 let artUrl = BLANK;
@@ -1181,7 +1181,7 @@ let dissolveUrl = '';
 const smoothstep = t => t * t * (3 - 2 * t);
 
 /* Value noise: a coarse lattice of random values interpolated smoothly, with
-   finer lattices laid over it. Television snow would dissolve as a grey haze —
+   finer lattices laid over it. Television snow would dissolve as a grey haze --
    this breaks up in patches, which is what the eye reads as an image giving
    way. */
 function noiseField(n) {
@@ -1242,14 +1242,14 @@ function bakeDissolve() {
 /* `cut` is decided by the caller, before anything is waited on. Read here it
    was already stale: the poll and the socket both report a track change, and
    the second, identical call landed the swipe while the first call's paint was
-   still decoding — so the paint arrived to find the landing spent and faded. */
+   still decoding -- so the paint arrived to find the landing spent and faded. */
 function paintArt(src, cut) {
   const from = artLayers[artTop], to = artLayers[artTop ^ 1];
   artPending = src;
   to.src = src;
   /* The layer being brought forward is the one that was in front two tracks
      ago, and it goes on showing that cover until the new one has decoded into
-     it — setting .src only asks. Revealing it on the strength of having asked
+     it -- setting .src only asks. Revealing it on the strength of having asked
      is why going 1, 2, 3 flashed 1 on the way to 3: the fade began on the
      stale frame. Nothing is revealed until the element itself says it is
      ready, which for a cover already in the cache is the very next frame. */
@@ -1318,7 +1318,7 @@ function setArt(url) {
   }
   artUrl = next;
   /* Claimed now, synchronously. A swipe is a cut, and whether it was one cannot
-     be decided after a decode has been waited on — by then the landing may have
+     be decided after a decode has been waited on -- by then the landing may have
      been taken by a duplicate call, or given up by the fallback timer. */
   const cut = !!artFlung;
   /* the cover a swipe carried in is on the screen already and therefore already
@@ -1393,7 +1393,7 @@ function renderSong() {
    lose ground on every socket push and the lyrics fall progressively behind. */
 function bankTime() {
   /* a reading of 0 duration is a gap between tracks, not a position, and
-     currentElapsed answers 0 for it — banking that would throw the position away */
+     currentElapsed answers 0 for it -- banking that would throw the position away */
   if (!state.duration) return;
   state.elapsed = currentElapsed();
   state.at = performance.now();
@@ -1402,7 +1402,7 @@ function bankTime() {
 /* The stored position and its timestamp only describe the same moment while the
    paused flag stays put: playing, the clock is elapsed plus the time since `at`;
    paused, it is elapsed alone. Flipping the flag without banking first therefore
-   reinterprets an origin that was recorded under the other rule — resuming adds
+   reinterprets an origin that was recorded under the other rule -- resuming adds
    the whole paused interval in one go and the bar snaps to the end of the track,
    and pausing freezes on a position from before the pause. Every flip goes
    through here so the two can never disagree. */
@@ -1414,7 +1414,7 @@ function setPaused(next) {
 
 /* A seek is applied here first and posted second, so for a moment the player
    is still reporting the position we just left. Believing that reading pulled
-   the bar — and the notification's scrubber — straight back to where it was,
+   the bar -- and the notification's scrubber -- straight back to where it was,
    which is what "seeking does nothing" looked like. The local position holds
    until the player has had time to move. A track change overrules it. */
 let seekAt = 0;
@@ -1441,7 +1441,7 @@ function applyPosition(reported, force) {
   if (force) seekAt = 0;
   else if (seekAt && performance.now() - seekAt < SEEK_HOLD) return;
   /* The player sometimes reports a position past the end of the track and holds
-     it there — a 295 second song came back as 1273, repeatedly. Stored, that
+     it there -- a 295 second song came back as 1273, repeatedly. Stored, that
      reading is clamped to the duration on the way out and the bar sits at the
      end for as long as it persists, which is what pausing looked like. A
      position outside the track is not a position, so the local clock is kept
@@ -1606,7 +1606,7 @@ function openSocket() {
       if (typeof m.shuffle === 'boolean') state.shuffle = m.shuffle;
       if (m.repeat) state.repeat = m.repeat;
       /* the socket carries the whole track, including artwork that GET /song
-         sometimes omits — that artwork is what the page colour is drawn from */
+         sometimes omits -- that artwork is what the page colour is drawn from */
       if (m.song && m.song.videoId) {
         const fresh = m.song.videoId !== lastVideoId;
         state.song = Object.assign({}, state.song, m.song);
@@ -1807,14 +1807,14 @@ function queueRow(t, i) {
    lyrics.ovh is a plain-text backstop. Both are HTTPS and CORS-open, which
    is what a page with no backend of its own needs. */
 const lyricsCache = new Map();
-/* The same title is uploaded at a dozen lengths — album edit, radio edit, a
-   version with a long outro — and timed lyrics written against one of them run
+/* The same title is uploaded at a dozen lengths -- album edit, radio edit, a
+   version with a long outro -- and timed lyrics written against one of them run
    steadily further out against another. Length is the only evidence available
    that a hit is this recording, so it is treated as proof rather than as a
    preference: past this, a synced hit is not used at all. */
 const MAX_DRIFT = 5;
 /* An LRC stamp marks where a line starts, and a highlight that arrives exactly
-   on it already reads as late — by the time the eye has moved, the words are
+   on it already reads as late -- by the time the eye has moved, the words are
    being sung. It leads by a fraction instead. This used to hold the line back
    by 0.4s on top of a clock that was itself half a second behind the audio,
    which is why the lyrics trailed the song by about a second. */
@@ -1848,7 +1848,7 @@ function parseLRC(text) {
 /* A candidate whose length cannot be compared is not a candidate for timing:
    unverifiable is not the same as close enough. Plain text has no timing to be
    wrong, so it is held to no such test and is what a failed match falls back
-   to — words in the right order beat words in the wrong places. */
+   to -- words in the right order beat words in the wrong places. */
 const lyricDrift = (c, want) =>
   (want && c.duration) ? Math.abs(c.duration - want) : null;
 const syncUsable = (c, want) => {
@@ -1904,7 +1904,7 @@ async function fetchLyrics(song) {
   const dur = Math.round(song.songDuration || 0);
 
   /* Candidates are pooled before choosing. Returning the first hit would settle
-     for a plain entry while a synced one sits in the next response — the exact
+     for a plain entry while a synced one sits in the next response -- the exact
      lookup often matches a plain upload of the same length. */
   const pool = [];
 
@@ -1968,7 +1968,7 @@ async function loadLyrics(force) {
 
   let res = lyricsCache.get(s.videoId);
   if (res === undefined || force) {
-    lyricsMessage('Looking for lyrics', `${s.title || ''} — ${primaryArtist(s.artist) || ''}`);
+    lyricsMessage('Looking for lyrics', `${s.title || ''} -- ${primaryArtist(s.artist) || ''}`);
     lyricsThrottled = false;
     try { res = await fetchLyrics(s); } catch { res = null; }
     if (lyricFor !== s.videoId) return;          // the track moved on while we waited
@@ -2072,7 +2072,7 @@ const queueNext = (videoId) =>
 /* There is no endpoint that plays a video id, so playing one now is putting it
    next and then skipping to it. Awaiting the insert is not enough: the 204 says
    the player has been told, not that it has moved anything, and a skip sent on
-   the strength of it lands on whatever used to be next — asked for Get Lucky,
+   the strength of it lands on whatever used to be next -- asked for Get Lucky,
    it played the track that was already queued. So the queue is asked what is
    coming until it answers with the right one, which is a kilobyte a try. */
 const playNow = async (videoId) => {
@@ -2130,7 +2130,7 @@ const SEARCH_SECTIONS = [
 ];
 const SEARCH_PEEK = 3;
 
-/* "3.6B plays", "22M views", "265M monthly audience", "1,650 subscribers" —
+/* "3.6B plays", "22M views", "265M monthly audience", "1,650 subscribers" --
    one number under four names, which is what each section is ranked on. */
 const COUNT_UNIT = { k: 1e3, m: 1e6, b: 1e9 };
 function countOf(text) {
@@ -2224,7 +2224,7 @@ function searchRow(t) {
 }
 
 /* Three of each is enough to see whether the search understood you; the rest
-   is there for when it did not. Rebuilt whole on every toggle — a search
+   is there for when it did not. Rebuilt whole on every toggle -- a search
    result has no state of its own worth preserving across one. */
 function renderSearch() {
   const list = $('searchList');
@@ -2262,8 +2262,8 @@ function renderSearch() {
 }
 
 /* The player answers one search at a time. Asked for all three at once it
-   returns whichever ran last three times over — three identical lists under
-   three different headings — so the sections are asked for in turn, and each
+   returns whichever ran last three times over -- three identical lists under
+   three different headings -- so the sections are asked for in turn, and each
    is drawn as it lands rather than after the other two. */
 let searchSeq = 0;
 async function runSearch(q) {
@@ -2303,7 +2303,7 @@ $('bPlay').onclick = () => {
 /* The cover is the biggest thing on the page, so it is also the easiest target
    for the control reached for most.
    On touch it carries the rest of the transport too: a swipe changes track, and
-   a double tap seeks by the half it landed in — which is where the ten second
+   a double tap seeks by the half it landed in -- which is where the ten second
    skip went when its buttons came off the bar. That costs the single tap a
    short wait to see whether a second one follows, so gestures are bound to
    touch and pen only; a mouse click stays immediate and the keyboard already
@@ -2323,7 +2323,7 @@ artBtn.style.touchAction = 'pan-y';
 /* The rail carries three covers and shows the middle one. A drag moves it one
    for one under the finger, so the cover being reached for is on screen the
    whole way and the one being left never goes anywhere it cannot come back
-   from — the gesture is reversible until it is let go, which is what makes it
+   from -- the gesture is reversible until it is let go, which is what makes it
    feel like handling the thing rather than firing a command at it. */
 const artRail = $('artRail');
 const RAIL_HOME = 'translateX(-33.3333%)';
@@ -2351,25 +2351,25 @@ const settleArt = () => railSet(0, true);
 /* right is back, matching the direction the queue moves in */
 function flingArt(dir) {
   clearTimeout(artFlungTimer);
-  /* going back, the cover before the one being landed on is not known — and
+  /* going back, the cover before the one being landed on is not known -- and
      the one being left is now what comes next, not what came before */
   if (dir > 0) leftBehind = null;
   const cell = dir > 0 ? artPrevEl : artNextEl;
   artFlung = dir;
   /* Read now, not when the track lands. The cells are rewritten the moment the
-     new track is known — before its artwork has finished decoding — so asking
+     new track is known -- before its artwork has finished decoding -- so asking
      the cell what it was carrying afterwards got the answer "nothing", and the
      swipe fell back to dissolving over a cover it had already brought in. */
   flungSrc = cell.src !== BLANK ? cell.src : null;
   act(() => api.post(dir > 0 ? '/api/v1/previous' : '/api/v1/next'));
-  /* no cover on that side — the queue was never read, or it ends here. The
+  /* no cover on that side -- the queue was never read, or it ends here. The
      track still changes and the swap is still a cut; the rail simply has
      nothing worth sliding, so it comes back rather than showing a blank panel. */
   if (flungSrc) railSet(dir * (artBtn.offsetWidth || 0), true);
   else settleArt();
-  /* nothing changed — the end of the queue, or repeat-one playing it again.
+  /* nothing changed -- the end of the queue, or repeat-one playing it again.
      The rail comes back rather than sitting on a cover that is not playing. */
-  /* Only for a swipe that changed nothing — the end of the queue, or repeat-one
+  /* Only for a swipe that changed nothing -- the end of the queue, or repeat-one
      playing it again. A change that does happen takes about a second and a
      quarter to come back, so this sits well clear of it rather than cutting
      across the answer it is waiting for. */
@@ -2381,7 +2381,7 @@ function flingArt(dir) {
 /* The swipe has already put the new cover in frame; all that is left is to move
    the rail back under it, which moves nothing anybody can see. It always
    answers yes: a swipe is a cut, never a dissolve. Fading is how the page
-   shows a change it did not make — a track ending, a queue jump — and putting
+   shows a change it did not make -- a track ending, a queue jump -- and putting
    one on the end of a gesture reads as the swipe being undone and redone. */
 function artLanded(src) {
   if (!artFlung) return false;
@@ -2405,7 +2405,7 @@ artBtn.addEventListener('pointerdown', (e) => {
 
 /* on the window rather than the cover: a fast drag leaves the cover behind
    between two frames, and pointer capture cannot be claimed until the gesture
-   has been recognised — which is exactly what those first moves are for */
+   has been recognised -- which is exactly what those first moves are for */
 addEventListener('pointermove', (e) => {
   const d = artDrag;
   if (!d || e.pointerId !== d.id) return;
@@ -2469,7 +2469,7 @@ const seekBy = (back) =>
    toggle or a fixed cycle, so the result is known before the player answers,
    and a wrong guess is corrected by the next reading a few seconds later.
    Shuffle is left alone: POST /shuffle shuffles the queue rather than flipping
-   a mode, so there is nothing to predict — its toast is the feedback. */
+   a mode, so there is nothing to predict -- its toast is the feedback. */
 const rate = (want) => () => {
   state.like = state.like === want ? 'INDIFFERENT' : want;
   renderTransport();
@@ -2627,7 +2627,7 @@ for (const t of TABS) $('tab' + cap(t)).onclick = () => setTab(t);
 for (const v of VIEWS) $('nav' + cap(v)).onclick = () => setView(v);
 
 /* Left and right walk the list, Home and End jump to its ends, and the focused
-   tab is the selected one — the pattern screen reader users expect from
+   tab is the selected one -- the pattern screen reader users expect from
    role="tablist" and the reason each list is a single stop on the tab key. */
 function rovingTabs(container, names, choose, idOf) {
   container.addEventListener('keydown', (e) => {
@@ -2732,8 +2732,8 @@ $('btnSearch').onclick = () => {
 };
 
 /* ---------------- two-finger gestures ---------------- */
-/* One finger is spoken for everywhere — the cover swipes, the queue reorders,
-   the scrubber seeks — so the gestures that work anywhere on the page take two,
+/* One finger is spoken for everywhere -- the cover swipes, the queue reorders,
+   the scrubber seeks -- so the gestures that work anywhere on the page take two,
    which nothing else claims. Touch events rather than pointer events: two
    fingers arrive as two unrelated pointers, and the touch list is the only
    thing that already knows they are one hand. */
@@ -2767,7 +2767,7 @@ addEventListener('touchmove', (e) => {
   if (two.axis === 'x') {
     /* the cover's own swipe, reached from anywhere: the same distance decides
        it, right is still back, and the track still arrives as a cut with the
-       rail carrying the cover it was reaching for. One per gesture, though —
+       rail carrying the cover it was reaching for. One per gesture, though --
        the fingers stay down long past the threshold, and repeating would run
        through the queue for as long as they are there. */
     if (!two.sent && Math.abs(dx) > SWIPE) {
@@ -2844,7 +2844,7 @@ $('bAddConn').onclick = async () => {
   let token = $('newToken').value.trim();
   if (!token) {
     try { toast('Requesting a token…'); token = await api.token(url, clientId); }
-    catch (err) { return toast(err.message + ' — approve the client in YouTube Music, then try again.', true); }
+    catch (err) { return toast(err.message + ' -- approve the client in YouTube Music, then try again.', true); }
   }
   const c = { id: 'c' + Date.now().toString(36), name, url, token, clientId };
   store.data.connections.push(c);
@@ -2975,7 +2975,7 @@ function renderSleep() {
   const left = sleepAt ? mmss(Math.max(0, sleepAt - Date.now()) / 1000) : '';
   $('sleepLeft').textContent = left;
   b.classList.toggle('on', !!sleepAt);
-  b.title = left ? `Sleep timer — ${left} left` : 'Sleep timer';
+  b.title = left ? `Sleep timer -- ${left} left` : 'Sleep timer';
   b.setAttribute('aria-label', b.title);
 }
 
@@ -3045,7 +3045,7 @@ let lastTick = 0, lastPoll = 0;
 /* Everything this page knows arrives over a socket or a poll, and a tab left in
    the background loses both: the system parks the timers and drops the socket
    without ever telling the page, which then came back showing the track that
-   was playing when it went away — and told the OS the same, so the notification
+   was playing when it went away -- and told the OS the same, so the notification
    was stale too. Coming back from that, or noticing the timer has been asleep,
    throws the socket away and starts again rather than trusting either. */
 function revive() {
@@ -3075,12 +3075,12 @@ function connect() {
   if (tab === 'queue') loadQueue();
   /* a socket that is delivering already carries everything this asks for, so the
      poll stands down while it is talking and takes over on its own the moment it
-     goes quiet — no flag to keep in step with the connection state */
+     goes quiet -- no flag to keep in step with the connection state */
   lastTick = 0; lastPoll = 0;
   songTimer = setInterval(() => {
     const now = performance.now();
     /* a tick that is a quarter of a minute late means the tab was frozen or the
-       machine slept — whatever the socket says about itself, it is not live */
+       machine slept -- whatever the socket says about itself, it is not live */
     if (lastTick && now - lastTick > 15000) { lastTick = now; return revive(); }
     lastTick = now;
     if (now - lastPush < 3000) return;
@@ -3129,8 +3129,8 @@ document.addEventListener('error', (e) => {
 }, true);
 
 /* Installs the page as a home screen app and lets it open without a network.
-   Service workers need a secure context, so on the plain http address — the one
-   Safari needs for localhost calls to work at all — navigator.serviceWorker is
+   Service workers need a secure context, so on the plain http address -- the one
+   Safari needs for localhost calls to work at all -- navigator.serviceWorker is
    simply not there and this does nothing. Nothing else depends on it. */
 if ('serviceWorker' in navigator) {
   addEventListener('load', () => {
