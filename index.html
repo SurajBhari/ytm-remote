@@ -241,6 +241,11 @@ img{display:block}
 @media(hover:hover) and (pointer:fine){.tab:hover{color:var(--text);background:var(--hover)}}
 .tab[aria-selected="true"]{color:var(--text);background:var(--surface)}
 .pane{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+/* the panes still scroll; only the bar goes. it is the browser's furniture
+   rather than part of this page, and it lands right where the queue's own row
+   actions sit */
+.pane{scrollbar-width:none}
+.pane::-webkit-scrollbar{width:0;height:0}
 
 /* ---- lyrics ---- */
 .lyr-pane{
@@ -562,10 +567,13 @@ img{display:block}
   body[data-view="player"] .pb-track .txt{flex:1;min-width:0}
   body[data-view="player"] .pb-track .t{font-size:20px;font-weight:700;line-height:1.3}
   body[data-view="player"] .pb-track .s{font-size:14px;margin-top:4px}
-  body[data-view="player"] .pb-right{flex:0 0 100%;order:3;gap:24px;justify-content:center}
-  body[data-view="player"] .vol{display:none}
+  /* shuffle and repeat have been moved onto the transport row by now, so the
+     right hand group is the volume alone: its own row under the controls */
+  body[data-view="player"] .pb-right{flex:0 0 100%;order:4;gap:24px;justify-content:center}
+  body[data-view="player"] .vol{flex:1 1 auto;max-width:320px;gap:12px}
+  /* the 80px the bar gives it is a desktop measure; here it has the row */
+  body[data-view="player"] .vol input{flex:1;width:auto}
   /* five across, as in the app: shuffle, prev, play, next, repeat */
-  body[data-view="player"] .pb-right{display:none}
   body[data-view="player"] .ctrls{gap:16px}
   body[data-view="player"] .ib{width:48px;height:48px}
   body[data-view="player"] .ib svg{width:28px;height:28px}
@@ -785,8 +793,6 @@ body.offline .art-btn::after{content:none}
       <svg viewBox="0 0 24 24"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-9v7.2a3 3 0 1 0 2 2.8V9h3V7z"/></svg>Up next</button>
     <button role="tab" id="navLyrics" aria-selected="false">
       <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4zm0 4h11v2H4zm0 4h16v2H4zm0 4h9v2H4z"/></svg>Lyrics</button>
-    <button role="tab" id="navSearch" aria-selected="false">
-      <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 0 3.5 10.9l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/></svg>Search</button>
   </nav>
 </div>
 
@@ -1019,12 +1025,29 @@ let volDragging = false;
 /* GET and POST /volume speak different scales. The player reports a perceptual
    value but accepts a raw one, so echoing a reading straight back collapses the
    level -- measured 60 then 29 then 8 then 1 on repeat. The slider therefore
-   holds a command value we own: seeded once from the player through the inverse
-   of its curve, and never overwritten by a later reading. */
+   holds a command value we own, recovered from each reading through the inverse
+   of that curve. */
 const VOL_CURVE = 2.5;
 const toCommand = (reported) =>
   Math.round(100 * Math.pow(Math.max(0, Math.min(100, reported || 0)) / 100, 1 / VOL_CURVE));
 let volumeSeeded = false;
+/* A reading taken just after our own POST is usually the level from before it,
+   and taking that would drag the slider back before the new one arrives. */
+let volEchoUntil = 0;
+const holdVolume = () => { volEchoUntil = Date.now() + 1000; };
+
+/* The player is the authority: turn it down in the app, or on a keyboard's
+   media key, and the slider has to follow. Two things stop that being a fight
+   with the user's own hand -- the drag and echo guards, and the deadband. The
+   round trip through the curve lands within a point of what was sent, so
+   anything inside that is the slider hearing its own echo, not a move. */
+function applyReportedVolume(reported) {
+  if (typeof reported !== 'number' || volDragging || Date.now() < volEchoUntil) return;
+  const next = toCommand(reported);
+  if (volumeSeeded && Math.abs(next - state.volume) <= 1) return;
+  volumeSeeded = true;
+  state.volume = next;
+}
 
 function lamp(cls, text) {
   $('lamp').className = 'lamp ' + cls;
@@ -1498,7 +1521,7 @@ function renderTransport() {
   $('volIcon').setAttribute('d', state.muted || state.volume === 0
     ? 'M4 9h3l4-4v14l-4-4H4zm13.3 6.9-1.4-1.4L17.5 13l-1.6-1.5 1.4-1.4 1.6 1.5 1.6-1.5 1.4 1.4L20.3 13l1.6 1.5-1.4 1.4-1.6-1.5z'
     : 'M4 9h3l4-4v14l-4-4H4zm11.5 3a3.5 3.5 0 0 0-2-3.2v6.4a3.5 3.5 0 0 0 2-3.2zM17 6.4a6 6 0 0 1 0 11.2v-2.2a4 4 0 0 0 0-6.8z');
-  if (!volDragging && document.activeElement !== $('vol')) $('vol').value = state.volume;
+  if (!volDragging) $('vol').value = state.volume;
   updateMediaSession();
   syncWakeLock();
 }
@@ -1549,7 +1572,7 @@ async function pollAux() {
       /* older plugin builds leave isMuted off the payload, and coercing that
          to false wiped the mute indicator on the poll after the tap */
       if (typeof vol.isMuted === 'boolean') state.muted = vol.isMuted;
-      if (!volumeSeeded && !volDragging) { state.volume = toCommand(vol.state); volumeSeeded = true; }
+      applyReportedVolume(vol.state);
     }
     if (sh) state.shuffle = !!sh.state;
     if (rep) state.repeat = rep.mode || 'NONE';
@@ -1600,10 +1623,7 @@ function openSocket() {
     if (m.type === 'PLAYER_INFO') {
       if (typeof m.isPlaying === 'boolean') setPaused(!m.isPlaying);
       if (typeof m.position === 'number') applyPosition(m.position, false);
-      if (typeof m.volume === 'number' && !volumeSeeded && !volDragging) {
-        state.volume = toCommand(m.volume);
-        volumeSeeded = true;
-      }
+      applyReportedVolume(m.volume);
       if (typeof m.muted === 'boolean') state.muted = m.muted;
       if (typeof m.shuffle === 'boolean') state.shuffle = m.shuffle;
       if (m.repeat) state.repeat = m.repeat;
@@ -2530,6 +2550,7 @@ volEl.addEventListener('change', (e) => {
   state.volume = +e.target.value;
   volumeSeeded = true;
   volDragging = false;
+  holdVolume();
   act(() => api.post('/api/v1/volume', { volume: state.volume }));
 });
 volEl.addEventListener('pointerup', () => { volDragging = false; });
@@ -2549,6 +2570,7 @@ function nudgeVolume(delta) {
   clearTimeout(volSendTimer);
   volSendTimer = setTimeout(() => {
     volDragging = false;
+    holdVolume();
     act(() => api.post('/api/v1/volume', { volume: state.volume }));
   }, 180);
 }
@@ -2589,6 +2611,9 @@ track.addEventListener('keydown', (e) => {
    on every size. They are kept in step so switching on mobile also switches on desktop. */
 const TABS = ['queue', 'lyrics', 'search'];
 const VIEWS = ['player', 'queue', 'lyrics', 'search'];
+/* search is a view but not a nav stop: the header's magnifier is the way in, so
+   the bar shows three and simply clears its selection while search is up */
+const NAV_VIEWS = ['player', 'queue', 'lyrics'];
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
 /* the pane you left it on is nearly always the one you want back */
@@ -2617,7 +2642,7 @@ function setView(name) {
   view = name;
   store.data.view = name; store.save();
   document.body.dataset.view = name;
-  for (const v of VIEWS) {
+  for (const v of NAV_VIEWS) {
     const btn = $('nav' + cap(v));
     btn.setAttribute('aria-selected', String(v === name));
     btn.tabIndex = v === name ? 0 : -1;
@@ -2626,7 +2651,7 @@ function setView(name) {
 }
 
 for (const t of TABS) $('tab' + cap(t)).onclick = () => setTab(t);
-for (const v of VIEWS) $('nav' + cap(v)).onclick = () => setView(v);
+for (const v of NAV_VIEWS) $('nav' + cap(v)).onclick = () => setView(v);
 
 /* Left and right walk the list, Home and End jump to its ends, and the focused
    tab is the selected one -- the pattern screen reader users expect from
@@ -2648,7 +2673,7 @@ function rovingTabs(container, names, choose, idOf) {
   });
 }
 rovingTabs(document.querySelector('.tabs'), TABS, setTab, (t) => 'tab' + cap(t));
-rovingTabs(document.querySelector('.nav'), VIEWS, setView, (v) => 'nav' + cap(v));
+rovingTabs(document.querySelector('.nav'), NAV_VIEWS, setView, (v) => 'nav' + cap(v));
 /* the markup ships with queue and player selected, so put the remembered pane on
    screen and let these two settle the aria state and the tab order with it */
 setTab(tab);
