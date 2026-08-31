@@ -161,7 +161,7 @@ img{display:block}
   transition:opacity .15s cubic-bezier(.2,0,0,1);
 }
 .art-btn:hover::after,.art-btn:focus-visible::after{opacity:1}
-@media(hover:none){.art-btn::after{content:none}}
+@media(hover:none),(pointer:coarse){.art-btn::after{content:none}}
 /* two stacked covers rather than one whose src is replaced. Swapping the src
    showed the placeholder for as long as the new cover took to arrive, so a
    track change blinked; the incoming layer is decoded first and then dissolved
@@ -227,7 +227,7 @@ img{display:block}
   height:40px;width:auto;padding:0 16px;border-radius:999px; /* unslop-ignore: the app's own chip shape */
   background:rgba(255,255,255,.1);color:var(--text);font-size:13px;font-weight:500;
 }
-@media(hover:hover){.chip-btn:hover,.actions .ib:hover{background:rgba(255,255,255,.16)}}
+@media(hover:hover) and (pointer:fine){.chip-btn:hover,.actions .ib:hover{background:rgba(255,255,255,.16)}}
 .chip-btn svg,.actions .ib svg{width:20px;height:20px;fill:currentColor}
 .actions .ib.on{color:var(--accent)}
 
@@ -238,7 +238,7 @@ img{display:block}
   display:inline-flex;align-items:center;justify-content:center;min-height:40px;
   color:var(--text-3);font-size:13px;font-weight:500;padding:0 12px;border-radius:var(--r-md);
 }
-@media(hover:hover){.tab:hover{color:var(--text);background:var(--hover)}}
+@media(hover:hover) and (pointer:fine){.tab:hover{color:var(--text);background:var(--hover)}}
 .tab[aria-selected="true"]{color:var(--text);background:var(--surface)}
 .pane{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
 
@@ -290,7 +290,7 @@ img{display:block}
 }
 .lyrics.synced .lyric.on{opacity:1;color:var(--text);transform:scale(1);filter:blur(0);pointer-events:auto}
 /* hovering pulls a line back into focus, so you can read what you would seek to */
-@media(hover:hover){.lyrics.synced .lyric.near:hover{opacity:.7;filter:blur(0);color:rgba(255,255,255,.9)}}
+@media(hover:hover) and (pointer:fine){.lyrics.synced .lyric.near:hover{opacity:.7;filter:blur(0);color:rgba(255,255,255,.9)}}
 .lyrics.synced .lyric.blank{font-size:26px}
 .lyrics.synced .lyric.blank.on{color:var(--accent)}
 
@@ -307,7 +307,7 @@ img{display:block}
   display:inline-flex;align-items:center;justify-content:center;min-height:40px;
   color:var(--text-2);font-size:13px;font-weight:500;padding:0 12px;border-radius:var(--r-md);
 }
-@media(hover:hover){.txtbtn:hover{color:var(--text);background:var(--hover)}}
+@media(hover:hover) and (pointer:fine){.txtbtn:hover{color:var(--text);background:var(--hover)}}
 .txtbtn.on{color:var(--accent)}
 .count{color:var(--text-3);font-size:12px;margin-left:auto}
 .sleep-grid{display:flex;flex-wrap:wrap;gap:8px}
@@ -315,7 +315,7 @@ img{display:block}
 /* ============ rows ============ */
 /* 4px artwork sitting in 8px of padding wants a 12px outer corner */
 .row{display:flex;align-items:center;gap:12px;padding:8px;border-radius:var(--r-row);cursor:pointer}
-@media(hover:hover){.row:hover{background:var(--hover)}}
+@media(hover:hover) and (pointer:fine){.row:hover{background:var(--hover)}}
 .row .idx{font-size:12px;color:var(--text-3);width:24px;flex:none;text-align:right}
 .row img{
   width:40px;height:40px;border-radius:var(--r-sm);object-fit:cover;flex:none;background:#0f0f0f;
@@ -338,11 +338,11 @@ img{display:block}
    rather than overlap */
 .row .acts{display:flex;gap:8px;flex:none;opacity:0;transition:opacity .12s cubic-bezier(.2,0,0,1)}
 .row:hover .acts,.row:focus-within .acts{opacity:1}
-@media(hover:none){.row .acts{opacity:1}}
+@media(hover:none),(pointer:coarse){.row .acts{opacity:1}}
 .row .acts button{position:relative;width:32px;height:32px;border-radius:var(--r-round);display:grid;place-items:center;color:var(--text-2)}
 /* the glyph stays 32px; the thing a finger has to land on is 40px */
 .row .acts button::after{content:'';position:absolute;inset:-4px}
-@media(hover:hover){.row .acts button:hover{background:var(--hover);color:var(--text)}}
+@media(hover:hover) and (pointer:fine){.row .acts button:hover{background:var(--hover);color:var(--text)}}
 .row .acts svg{width:18px;height:18px;fill:currentColor}
 /* the row being carried is lifted off the list; the rest slide under it */
 .row.dragging{
@@ -413,7 +413,7 @@ img{display:block}
 /* the rail thickens when it opens, so the knob's centre has to move with it or
    it sits a pixel high on the fatter line */
 .track:focus-visible .knob,.track.live .knob{top:3px}
-@media(hover:hover){
+@media(hover:hover) and (pointer:fine){
   .track:hover .rail,.track:hover .fill{height:6px}
   .track:hover .knob{opacity:1;top:3px}
 }
@@ -435,7 +435,7 @@ img{display:block}
    not interactive, so no two hit areas overlap */
 .timebtn{position:relative;color:inherit;font:inherit;font-variant-numeric:tabular-nums}
 .timebtn::after{content:'';position:absolute;inset:-12px -8px}
-@media(hover:hover){.timebtn:hover{color:var(--text)}}
+@media(hover:hover) and (pointer:fine){.timebtn:hover{color:var(--text)}}
 
 /* current track, centred */
 .pb-track{display:flex;align-items:center;gap:8px;flex:0 1 auto;min-width:0}
@@ -447,21 +447,21 @@ img{display:block}
   width:40px;height:40px;border-radius:var(--r-sm);object-fit:cover;flex:none;background:#0f0f0f;
   outline:1px solid var(--img-line);outline-offset:-1px;
 }
-@media(hover:hover){.pb-open:hover{background:var(--hover)}}
+@media(hover:hover) and (pointer:fine){.pb-open:hover{background:var(--hover)}}
 .pb-track .txt{min-width:0;display:flex;flex-direction:column;align-items:flex-start}
 .pb-track .t{
   max-width:100%;font-size:13px;text-align:left;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-@media(hover:hover){.pb-track .t:hover{text-decoration:underline}}
+@media(hover:hover) and (pointer:fine){.pb-track .t:hover{text-decoration:underline}}
 .pb-track .s{
   max-width:100%;font-size:12px;color:var(--text-2);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .pb-track .s a{color:inherit;text-decoration:none;border-radius:var(--r-sm)}
-@media(hover:hover){.pb-track .s a:hover{color:var(--text);text-decoration:underline}}
+@media(hover:hover) and (pointer:fine){.pb-track .s a:hover{color:var(--text);text-decoration:underline}}
 .ib{width:40px;height:40px;border-radius:var(--r-round);display:grid;place-items:center;color:var(--text);flex:none}
-@media(hover:hover){.ib:hover{background:var(--hover)}}
+@media(hover:hover) and (pointer:fine){.ib:hover{background:var(--hover)}}
 .ib svg{width:22px;height:22px;fill:currentColor;pointer-events:none}
 .ib.small svg{width:20px;height:20px}
 /* plain glyph in the bar, as in the reference; the filled circle is used
@@ -545,7 +545,7 @@ img{display:block}
   body[data-view="player"] .track.live .fill{top:5px}
   body[data-view="player"] .track .knob,
   body[data-view="player"] .track.live .knob{top:8px}
-  @media(hover:hover){
+  @media(hover:hover) and (pointer:fine){
     body[data-view="player"] .track:hover .rail,
     body[data-view="player"] .track:hover .fill{top:5px}
     body[data-view="player"] .track:hover .knob{top:8px}
@@ -570,7 +570,7 @@ img{display:block}
   body[data-view="player"] .ib{width:48px;height:48px}
   body[data-view="player"] .ib svg{width:28px;height:28px}
   body[data-view="player"] .ib.play{width:64px;height:64px;background:var(--text);color:#030303}
-  @media(hover:hover){body[data-view="player"] .ib.play:hover{background:#e6e6e6}}
+  @media(hover:hover) and (pointer:fine){body[data-view="player"] .ib.play:hover{background:#e6e6e6}}
   body[data-view="player"] .ib.play svg{width:32px;height:32px}
   body[data-view="player"] .now{overflow:hidden;justify-content:center}
   /* the app shows the rating and fullscreen pills under the artwork on a phone */
@@ -615,7 +615,7 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
   background:var(--text);color:#030303;font-size:14px;font-weight:500;
   padding:0 16px;border-radius:var(--r-md);align-self:flex-start;
 }
-@media(hover:hover){.pill:hover{background:#e6e6e6}}
+@media(hover:hover) and (pointer:fine){.pill:hover{background:#e6e6e6}}
 .label{font-size:12px;color:var(--text-3);margin-bottom:8px}
 
 .toast{
@@ -1546,7 +1546,9 @@ async function pollAux() {
     ]);
     if (like) state.like = like.state;
     if (vol) {
-      state.muted = !!vol.isMuted;
+      /* older plugin builds leave isMuted off the payload, and coercing that
+         to false wiped the mute indicator on the poll after the tap */
+      if (typeof vol.isMuted === 'boolean') state.muted = vol.isMuted;
       if (!volumeSeeded && !volDragging) { state.volume = toCommand(vol.state); volumeSeeded = true; }
     }
     if (sh) state.shuffle = !!sh.state;
