@@ -84,7 +84,7 @@ body::before{
    animates `filter` for the track-change blur, and a second author on that
    property would fight it. */
 body.dim::before{opacity:.35}
-body.dim .art-wrap,body.dim #barArt{filter:brightness(.62) saturate(.75)}
+body.dim .art-wrap,body.dim #barArt{filter:brightness(.62) saturate(.75) grayscale(90%)}
 .art-wrap,#barArt{transition:filter .5s cubic-bezier(.2,0,0,1)}
 @media(prefers-reduced-motion:reduce){.art-wrap,#barArt{transition:none}}
 button,input{font:inherit;color:inherit}
