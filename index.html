@@ -74,7 +74,7 @@ body{
 /* art-derived wash, the way the reference tints its player page */
 body::before{
   content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
-  background:linear-gradient(180deg,var(--art-bg) 0%,var(--bg) 62%);
+  background:repeating-linear-gradient(180deg,var(--art-bg) 0%,var(--bg) 100%);
   transition:background 700ms ease,opacity 700ms ease;
 }
 /* paused is the lights going down. The art-derived wash pulls back towards the
@@ -691,7 +691,7 @@ body.offline .art-btn::after{content:none}
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tabQueue" aria-selected="true" aria-controls="paneQueue">Up next</button>
         <button class="tab" role="tab" id="tabLyrics" aria-selected="false" aria-controls="paneLyrics">Lyrics</button>
-        <button class="tab" role="tab" id="tabSearch" aria-selected="false" aria-controls="paneSearch">Search</button>
+        <button class="tab" role="tab" id="tabSearch" aria-selected="false" aria-controls="paneSearch"></button>
       </div>
 
       <div class="pane" id="paneQueue" role="tabpanel">
