@@ -2813,6 +2813,46 @@ const twoEnd = () => { two = null; };
 addEventListener('touchend', twoEnd, { passive: true });
 addEventListener('touchcancel', twoEnd, { passive: true });
 
+/* ---------------- three-finger tap ---------------- */
+/* Play and pause without looking, from anywhere on the page. Two fingers are
+   spoken for by the swipe and the volume drag, so the count is what tells them
+   apart, and the third finger nulls `two` on its way in through the handler
+   above -- a tap can never leave half a swipe behind it. */
+const TAP_SLOP = 16, TAP_HOLD = 500;
+
+let three = null;
+const threeMid = (t) => ({
+  x: (t[0].clientX + t[1].clientX + t[2].clientX) / 3,
+  y: (t[0].clientY + t[1].clientY + t[2].clientY) / 3
+});
+
+addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 3 || document.querySelector('dialog[open]')) { three = null; return; }
+  if (artDrag) { artDrag = null; settleArt(); }
+  three = Object.assign({ at: performance.now() }, threeMid(e.touches));
+}, { passive: true });
+
+addEventListener('touchmove', (e) => {
+  if (!three) return;
+  if (e.touches.length !== 3) { three = null; return; }
+  const m = threeMid(e.touches);
+  /* a tap that travels is a hand resting on a scroll, not a command */
+  if (Math.abs(m.x - three.x) > TAP_SLOP || Math.abs(m.y - three.y) > TAP_SLOP) three = null;
+}, { passive: true });
+
+/* the first finger to lift ends it: three is cleared before the button is
+   pressed, so the other two lifting cannot toggle it back */
+addEventListener('touchend', () => {
+  if (!three) return;
+  const quick = performance.now() - three.at < TAP_HOLD;
+  three = null;
+  if (!quick) return;
+  gestureAt = performance.now();     // any click the lift synthesises is ours
+  $('bPlay').click();                // disabled while offline, so no guard here
+}, { passive: true });
+
+addEventListener('touchcancel', () => { three = null; }, { passive: true });
+
 /* ---------------- connections ---------------- */
 const dlg = $('dlg');
 $('btnConn').onclick = () => { renderConns(); dlg.showModal(); };
