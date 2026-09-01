@@ -255,6 +255,19 @@ img{display:block}
 }
 /* only present when the matched lyrics may drift against this recording */
 .lyr-head{padding:4px 4px 12px;font-size:12px;color:var(--text-3);text-wrap:pretty}
+/* the timing nudge. Ranged against the right edge because the lines are read
+   from the left, and small because it is furniture rather than a control you
+   come to the tab for */
+.lyr-tune{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex:none;padding:0 2px 6px}
+.lyr-tune button{
+  position:relative;height:32px;padding:0 10px;border-radius:var(--r-md);
+  color:var(--text-3);font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;
+}
+/* the label is 32px tall; what a finger has to hit is 40 */
+.lyr-tune button::after{content:'';position:absolute;inset:-4px 0}
+@media(hover:hover) and (pointer:fine){.lyr-tune button:hover{color:var(--text);background:var(--hover)}}
+.lyr-tune .val{min-width:68px;text-align:center}
+.lyr-tune .val.on{color:var(--accent)}
 .lyrics{max-width:680px;margin:0 auto;width:100%}
 .lyric{
   display:block;width:100%;text-align:left;
@@ -301,7 +314,7 @@ img{display:block}
 
 /* plain lyrics have no timing, so nothing is clickable and the list scrolls */
 .lyrics.plain .lyric{color:rgba(255,255,255,.82);cursor:default;font-size:18px}
-@media(max-width:719px){
+@media(max-width:719px),(max-width:1000px) and (orientation:portrait){
   .lyrics.synced .lyric{font-size:clamp(24px,6.6vw,34px)}
   .lyrics.plain .lyric{font-size:20px}
 }
@@ -499,10 +512,19 @@ img{display:block}
 @media(max-width:1000px){
   .content{gap:16px}
   .art-btn{max-width:min(300px,42vh)}
+  /* the bar is carrying ten controls by this width and the slider is the one
+     of them a touch screen does not need: the hardware keys, the wheel and the
+     two finger drag all reach the volume, and the mute button stays. The
+     stacked player view below gives it a row of its own and takes it back. */
+  .vol input{display:none}
 }
 
-/* ============ mobile: one pane at a time, mini player, bottom nav ============ */
-@media(max-width:719px){
+/* ============ stacked: one pane at a time, mini player, bottom nav ============
+   A phone at any orientation, and a tablet held upright. 800px of width split
+   between the cover and the queue leaves neither usable, and the bar's controls
+   have nowhere to sit. `stacked` in the script is this same condition and has
+   to be changed with it. */
+@media(max-width:719px),(max-width:1000px) and (orientation:portrait){
   .content{padding:0 12px 12px;gap:0}
   /* the header carries three buttons and the name here, so the status gives up
      its words and keeps only the dot. hidden rather than removed, so it is
@@ -572,7 +594,7 @@ img{display:block}
   body[data-view="player"] .pb-right{flex:0 0 100%;order:4;gap:24px;justify-content:center}
   body[data-view="player"] .vol{flex:1 1 auto;max-width:320px;gap:12px}
   /* the 80px the bar gives it is a desktop measure; here it has the row */
-  body[data-view="player"] .vol input{flex:1;width:auto}
+  body[data-view="player"] .vol input{display:block;flex:1;width:auto}
   /* five across, as in the app: shuffle, prev, play, next, repeat */
   body[data-view="player"] .ctrls{gap:16px}
   body[data-view="player"] .ib{width:48px;height:48px}
@@ -586,10 +608,6 @@ img{display:block}
   body[data-view="player"] .art-btn{max-width:100%}
   .track .knob{opacity:1}
 }
-@media(min-width:720px){
-  .nav{display:none}
-}
-
 /* ============ dialog ============ */
 /* 8px cards inset by 12px of padding put the shell's corner at 20px */
 dialog{
@@ -616,6 +634,15 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
 .conn .u{font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grid2{display:grid;grid-template-columns:1fr 140px;gap:8px}
 @media(max-width:520px){.grid2{grid-template-columns:1fr}}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:10px 16px;align-items:baseline;font-size:13px}
+.keys h4{grid-column:1/-1;margin:8px 0 0;font-size:12px;font-weight:500;color:var(--text-3)}
+.keys h4:first-child{margin-top:0}
+.keys kbd{
+  justify-self:start;background:#181818;border-radius:var(--r-sm);padding:3px 8px;
+  font:inherit;font-size:12px;color:var(--text-2);white-space:nowrap;
+}
+/* a gesture is not a key, so it is not dressed as one */
+.keys .act{color:var(--text-3);font-size:12px}
 .hint{font-size:12px;color:var(--text-3);line-height:1.55;text-wrap:pretty}
 .hint code{background:#181818;padding:2px 6px;border-radius:var(--r-sm);color:var(--text-2)}
 .pill{
@@ -780,6 +807,8 @@ body.offline .art-btn::after{content:none}
         <svg viewBox="0 0 24 24"><path id="repeatIcon" d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg></button>
       <button class="ib small" id="bShuffle" aria-label="Shuffle" title="Shuffle (S)">
         <svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4V8h-2.2l-2.3 3-1.3-1.7L13.6 6H17zM3 6h4.2l6.5 9H17v-3l4 4-4 4v-3h-4.3L6.2 8H3zM3 16h4.4l1.7-2.3 1.3 1.7L8.2 18H3z"/></svg></button>
+      <button class="ib small" id="bShare" aria-label="Share this track" title="Share">
+        <svg viewBox="0 0 24 24"><path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"/></svg></button>
       <button class="ib small" id="bFull" aria-label="Enter fullscreen" aria-pressed="false" title="Fullscreen (F)">
         <svg viewBox="0 0 24 24"><path id="fullIcon" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
     </div>
@@ -824,6 +853,11 @@ body.offline .art-btn::after{content:none}
   <div class="dlg-body"><div class="sleep-grid" id="rowDlgGrid"></div></div>
 </dialog>
 
+<dialog id="keysDlg">
+  <div class="dlg-head">Shortcuts<span style="flex:1"></span><button class="txtbtn" id="keysClose">Close</button></div>
+  <div class="dlg-body"><div class="keys" id="keysList"></div></div>
+</dialog>
+
 <dialog id="sleepDlg">
   <div class="dlg-head">Sleep timer<span style="flex:1"></span><button class="txtbtn" id="sleepClose">Close</button></div>
   <div class="dlg-body">
@@ -842,10 +876,11 @@ body.offline .art-btn::after{content:none}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [] },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
+    if (!Array.isArray(this.data.history)) this.data.history = [];
     return this.data;
   },
   save() { try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch {} }
@@ -1381,6 +1416,7 @@ function renderSong() {
   const year = s.uploadDate && !isNaN(new Date(s.uploadDate))
     ? String(new Date(s.uploadDate).getFullYear()) : '';
   $('barTitle').textContent = s.title || 'Untitled';
+  remember(s);
 
   /* artist • album • year, the way the reference bar reads. The first two are
      places you can go, so they are links; the year is not. */
@@ -1845,6 +1881,61 @@ const LYRIC_LEAD = 0.25;
    are blurred and nearly transparent, which is what lets the window be this wide
    without competing with the line being sung */
 const LYRIC_WINDOW = 6;
+/* A set of stamps written against one upload and played against another can
+   still sit a beat out even when the lengths agree, and no amount of picking
+   between candidates fixes that -- so the last word is yours. Positive holds
+   the lines back. It is kept per track: the same recording will be out by the
+   same amount the next time it comes round. */
+const OFFSET_STEP = 0.25;
+const OFFSET_MAX = 8;
+let lyricOffset = 0;
+let offsetLabel = null;
+
+function offsets() {
+  const d = store.data;
+  if (!d.lyricOffsets || typeof d.lyricOffsets !== 'object') d.lyricOffsets = {};
+  return d.lyricOffsets;
+}
+
+function setLyricOffset(secs) {
+  if (!lyricFor) return;
+  const step = Math.round(secs / OFFSET_STEP) * OFFSET_STEP;
+  lyricOffset = Math.max(-OFFSET_MAX, Math.min(OFFSET_MAX, step));
+  const map = offsets();
+  if (lyricOffset) map[lyricFor] = lyricOffset; else delete map[lyricFor];
+  /* one entry per track ever nudged is a slow leak, but it is a leak */
+  const keys = Object.keys(map);
+  if (keys.length > 100) delete map[keys[0]];
+  store.save();
+  lyricIdx = -1;                    // which line is current is now a different question
+  syncLyrics();
+  renderOffset();
+}
+
+function renderOffset() {
+  if (!offsetLabel) return;
+  const o = lyricOffset;
+  offsetLabel.textContent = o ? (o > 0 ? '+' : '') + (+o.toFixed(2)) + 's' : 'In sync';
+  offsetLabel.classList.toggle('on', !!o);
+  offsetLabel.title = o ? 'Put the timing back' : 'The lines are timed as they arrived';
+}
+
+function offsetRow() {
+  const row = el('div', 'lyr-tune');
+  const nudge = (by, title) => {
+    const b = el('button', null, (by > 0 ? '+' : '') + by + 's');
+    b.title = title;
+    b.onclick = () => setLyricOffset(lyricOffset + by);
+    row.appendChild(b);
+  };
+  nudge(-OFFSET_STEP, 'Show each line earlier');
+  offsetLabel = el('button', 'val');
+  offsetLabel.onclick = () => setLyricOffset(0);
+  row.appendChild(offsetLabel);
+  nudge(OFFSET_STEP, 'Show each line later');
+  renderOffset();
+  return row;
+}
 
 const primaryArtist = (a) =>
   (a || '').split(/,|&|\bfeat\.?\b|\bft\.?\b|\bwith\b/i)[0].trim();
@@ -1984,9 +2075,10 @@ function lyricsMessage(strong, rest) {
 
 async function loadLyrics(force) {
   const s = state.song;
-  lyricLines = null; lyricNodes = []; lyricIdx = -1; lyricWrap = null;
+  lyricLines = null; lyricNodes = []; lyricIdx = -1; lyricWrap = null; offsetLabel = null;
   if (!s || !s.videoId) { lyricFor = null; return lyricsMessage('Lyrics', 'Play a track to look up its lyrics.'); }
   lyricFor = s.videoId;
+  lyricOffset = offsets()[s.videoId] || 0;
 
   let res = lyricsCache.get(s.videoId);
   if (res === undefined || force) {
@@ -2009,7 +2101,8 @@ function renderLyrics(res) {
   /* Whether the lines are timed, and which service served them, is obvious from
      the lyrics themselves. Only a drift warning says something the page cannot
      show, so that is the only thing that still gets a header. */
-  const head = res.note ? el('div', 'lyr-head', res.note) : null;
+  const heads = [];
+  if (res.note) heads.push(el('div', 'lyr-head', res.note));
   const wrap = el('div', 'lyrics ' + (res.synced ? 'synced' : 'plain'));
 
   if (res.synced) {
@@ -2018,8 +2111,9 @@ function renderLyrics(res) {
       const b = el('button', 'lyric' + (ln.text ? '' : ' blank'), ln.text || '♪');
       b.type = 'button';
       b.onclick = () => {
-        state.elapsed = ln.t; state.at = performance.now(); renderProgress();
-        act(() => api.post('/api/v1/seek-to', { seconds: Math.round(ln.t) }));
+        const at = ln.t + lyricOffset;
+        state.elapsed = at; state.at = performance.now(); renderProgress();
+        act(() => api.post('/api/v1/seek-to', { seconds: Math.round(at) }));
       };
       wrap.appendChild(b);
       return b;
@@ -2037,7 +2131,8 @@ function renderLyrics(res) {
     body = el('div', 'lyr-viewport');
     body.appendChild(wrap);
   }
-  $('lyricsBody').replaceChildren(...(head ? [head, body] : [body]));
+  if (res.synced) heads.push(offsetRow());
+  $('lyricsBody').replaceChildren(...heads, body);
   lyricIdx = -1;
   $('paneLyrics').scrollTop = 0;
   /* offsetTop is only meaningful once the browser has laid the list out, and by
@@ -2048,7 +2143,7 @@ function renderLyrics(res) {
 
 function syncLyrics() {
   if (!lyricLines || !lyricLines.length) return;
-  const now = currentElapsed() + LYRIC_LEAD;
+  const now = currentElapsed() + LYRIC_LEAD - lyricOffset;
   let i = lyricIdx;
   if (i < 0 || now < lyricLines[i].t) i = -1;            // seeked backwards
   while (i + 1 < lyricLines.length && lyricLines[i + 1].t <= now) i++;
@@ -2243,6 +2338,53 @@ function searchRow(t) {
   acts.appendChild(b);
   row.appendChild(acts);
   return row;
+}
+
+/* ---------------- recently played ----------------
+   The page is told what is playing and forgets it the moment the next track
+   starts, which is fine until you want back the one from twenty minutes ago
+   and have half its title. Kept here rather than asked of the player: YouTube
+   Music's own history is per account, and this is per remote. It fills the
+   search pane, because wanting a track back is what that pane is for and an
+   empty search box had nothing better to show. */
+const HISTORY_MAX = 50;
+const played = () => store.data.history;
+
+function remember(s) {
+  if (!s.videoId) return;
+  const list = played();
+  if (list[0] && list[0].videoId === s.videoId) return;    // the same track, re-rendered
+  const seen = list.findIndex(h => h.videoId === s.videoId);
+  if (seen >= 0) list.splice(seen, 1);                     // heard again is one entry, moved up
+  list.unshift({ videoId: s.videoId, title: s.title || 'Untitled', by: s.artist || '', thumb: s.imageSrc || '' });
+  if (list.length > HISTORY_MAX) list.length = HISTORY_MAX;
+  store.save();
+  if (tab === 'search' && !searchFound) renderHistory();
+}
+
+function renderHistory() {
+  const list = $('searchList');
+  /* what is playing is not something you need offered back to you */
+  const cur = state.song && state.song.videoId;
+  const items = played().filter(h => h.videoId !== cur);
+  if (!items.length) {
+    const e = el('div', 'empty');
+    e.appendChild(el('strong', null, 'Search YouTube Music'));
+    e.appendChild(document.createTextNode('Anything you pick goes into the queue right after the current track.'));
+    return list.replaceChildren(e);
+  }
+  const frag = document.createDocumentFragment();
+  const head = el('div', 'sec');
+  head.appendChild(el('h3', null, 'Recently played'));
+  head.appendChild(el('span', 'n', String(items.length)));
+  frag.appendChild(head);
+  for (const h of items) frag.appendChild(searchRow({ videoId: h.videoId, title: h.title, sub: h.by, meta: '', thumb: h.thumb }));
+  const wrap = el('div', 'sec-more');
+  const b = el('button', 'txtbtn', 'Clear history');
+  b.onclick = () => { store.data.history = []; store.save(); renderHistory(); };
+  wrap.appendChild(b);
+  frag.appendChild(wrap);
+  list.replaceChildren(frag);
 }
 
 /* Three of each is enough to see whether the search understood you; the rest
@@ -2539,6 +2681,27 @@ document.addEventListener('webkitfullscreenchange', renderFullscreen);
 if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) {
   $('bFull').hidden = true;
 }
+/* The player knows the video id and YouTube Music will open it from anywhere,
+   so the track someone is listening to is one tap from the person they want to
+   send it to. Web Share is the phone and tablet route; a desktop browser with
+   no share sheet puts the same link on the clipboard instead. */
+$('bShare').onclick = async () => {
+  const s = state.song;
+  if (!s || !s.videoId) return toast('Nothing playing', true);
+  const url = 'https://music.youtube.com/watch?v=' + encodeURIComponent(s.videoId);
+  try {
+    if (navigator.share) await navigator.share({ title: s.title || 'YouTube Music', text: [s.title, s.artist].filter(Boolean).join(' -- '), url });
+    else { await navigator.clipboard.writeText(url); toast('Link copied'); }
+  } catch (e) {
+    /* dismissing the share sheet is an answer, not a failure */
+    if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return;
+    toast('Could not share this track', true);
+  }
+};
+/* over plain http there is neither, and a button that cannot do its job is
+   worse than no button at all */
+if (!navigator.share && !navigator.clipboard) $('bShare').hidden = true;
+
 $('bMute').onclick = () => {
   state.muted = !state.muted; renderTransport();
   act(() => api.post('/api/v1/toggle-mute'));
@@ -2631,6 +2794,7 @@ function setTab(name) {
     $('pane' + cap(t)).hidden = t !== name;
   }
   if (name === 'queue') loadQueue();
+  if (name === 'search' && !searchFound) renderHistory();
   if (name === 'lyrics') {
     if (lyricFor !== (state.song && state.song.videoId)) loadLyrics();
     // a hidden pane has no layout, so the slide has to be recomputed on reveal
@@ -2682,25 +2846,26 @@ setView(view);
    beside the transport and rating sits in the pills under the title, while at
    desktop width both live out on the right. CSS cannot move a node between
    parents, so one set of buttons is relocated instead of duplicated. */
-const phone = matchMedia('(max-width:719px)');
+const stacked = matchMedia('(max-width:719px),(max-width:1000px) and (orientation:portrait)');
 function placeControls() {
   const ctrls = document.querySelector('.ctrls');
   const right = document.querySelector('.pb-right');
   const acts = $('actions');
-  if (phone.matches) {
+  if (stacked.matches) {
     ctrls.insertBefore($('bShuffle'), $('bPrev'));
     ctrls.appendChild($('bRepeat'));
-    acts.append($('bLike'), $('bDislike'), $('bFull'));   // no room on the transport row
+    acts.append($('bLike'), $('bDislike'), $('bShare'), $('bFull'));   // no room on the transport row
   } else {
     right.appendChild($('bRepeat'));
     right.appendChild($('bShuffle'));
+    right.appendChild($('bShare'));
     right.appendChild($('bFull'));
     const track = document.querySelector('.pb-track');
     track.appendChild($('bLike'));
     track.appendChild($('bDislike'));
   }
 }
-phone.addEventListener('change', placeControls);
+stacked.addEventListener('change', placeControls);
 placeControls();
 
 /* The artwork is square and must fit the space left over after the text and
@@ -2711,7 +2876,7 @@ const artWrap = document.querySelector('.art-wrap');
 function fitArt() {
   const w = artWrap.clientWidth, h = artWrap.clientHeight;
   if (!w || !h) return;
-  const cap = phone.matches ? w : Math.min(w, 360);
+  const cap = stacked.matches ? w : Math.min(w, 360);
   document.documentElement.style.setProperty('--art-size', Math.max(72, Math.min(w, h, cap)) + 'px');
 }
 new ResizeObserver(fitArt).observe(artWrap);
@@ -2723,7 +2888,12 @@ $('miniOpen').onclick = () => setView('player');
 
 $('bQueueRefresh').onclick = () => loadQueue();
 $('bQueueClear').onclick = () => act(() => api.del('/api/v1/queue'), 'Queue cleared').then(() => setTimeout(() => loadQueue(true), 400));
-$('searchForm').onsubmit = (e) => { e.preventDefault(); const q = $('searchInput').value.trim(); if (q) runSearch(q); };
+$('searchForm').onsubmit = (e) => {
+  e.preventDefault();
+  const q = $('searchInput').value.trim();
+  /* searching for nothing is asking for the pane back, not for no results */
+  if (q) runSearch(q); else { searchFound = null; renderHistory(); }
+};
 $('bAddId').onclick = () => {
   const v = $('videoIdInput').value.trim();
   if (!v) return toast('Paste a video ID first', true);
@@ -2744,6 +2914,12 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     return nudgeVolume(k === 'arrowup' ? 5 : -5);
   }
+  if (k === '?') {
+    e.preventDefault();
+    if ($('keysDlg').open) return $('keysDlg').close();
+    renderKeys();
+    return $('keysDlg').showModal();
+  }
   const map = { ' ': 'bPlay', n: 'bNext', p: 'bPrev', m: 'bMute', s: 'bShuffle', r: 'bRepeat', f: 'bFull', l: 'bLike' };
   const id = map[k];
   if (id) { e.preventDefault(); $(id).click(); }
@@ -2754,7 +2930,7 @@ document.addEventListener('keydown', (e) => {
    you came for. On a phone the pane is a whole view, so it goes through the
    bottom nav's route instead and stays in step with it. */
 $('btnSearch').onclick = () => {
-  if (phone.matches) setView('search'); else setTab('search');
+  if (stacked.matches) setView('search'); else setTab('search');
   $('searchInput').focus();
 };
 
@@ -3079,6 +3255,49 @@ $('btnSleep').onclick = () => { renderSleepOptions(); $('sleepDlg').showModal();
 $('sleepClose').onclick = () => $('sleepDlg').close();
 $('rowDlgClose').onclick = () => $('rowDlg').close();
 
+/* ---------------- shortcuts sheet ----------------
+   Every one of these is bound already and none of them is written down anywhere
+   on the page. The gestures are here too, and they are the half worth reading:
+   nothing on a touch screen says that the cover can be swiped. */
+const KEYS = [
+  ['Space', 'Play or pause'],
+  ['N', 'Next track'],
+  ['P', 'Previous track'],
+  ['← →', 'Seek back or forward'],
+  ['↑ ↓', 'Volume'],
+  ['L', 'Like'],
+  ['M', 'Mute'],
+  ['S', 'Shuffle the queue'],
+  ['R', 'Repeat'],
+  ['F', 'Fullscreen'],
+  ['?', 'This list']
+];
+const GESTURES = [
+  ['Swipe the cover', 'Previous or next track'],
+  ['Double tap the cover', 'Seek by the half you tapped'],
+  ['Two fingers sideways', 'Previous or next track'],
+  ['Two fingers up or down', 'Volume'],
+  ['Three finger tap', 'Play or pause'],
+  ['Hold a row', 'Everything else that row can do'],
+  ['Drag a row', 'Move it up or down the queue']
+];
+
+function renderKeys() {
+  const g = $('keysList');
+  g.replaceChildren();
+  const section = (title, rows, tag) => {
+    g.appendChild(el('h4', null, title));
+    for (const [k, what] of rows) {
+      g.appendChild(el(tag, tag === 'span' ? 'act' : null, k));
+      g.appendChild(el('span', null, what));
+    }
+  };
+  section('Keys', KEYS, 'kbd');
+  section('Touch', GESTURES, 'span');
+}
+
+$('keysClose').onclick = () => $('keysDlg').close();
+
 /* ---------------- screen wake lock ----------------
    A remote propped up beside you should not dim out halfway through a track.
    The lock is held only while something is actually playing and the page is in
@@ -3208,7 +3427,7 @@ if ('serviceWorker' in navigator) {
 /* nothing on the screen waits for it, so it goes after everything that does */
 if (window.requestIdleCallback) requestIdleCallback(bakeDissolve); else setTimeout(bakeDissolve, 400);
 
-renderSong(); renderProgress(); renderTransport(); renderFullscreen(); renderConnection();
+renderSong(); renderProgress(); renderTransport(); renderFullscreen(); renderConnection(); renderHistory();
 if (!store.data.connections.length) { renderConns(); dlg.showModal(); }
 else connect();
 </script>
