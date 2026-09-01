@@ -726,7 +726,6 @@ body.offline .art-btn::after{content:none}
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tabQueue" aria-selected="true" aria-controls="paneQueue">Up next</button>
         <button class="tab" role="tab" id="tabLyrics" aria-selected="false" aria-controls="paneLyrics">Lyrics</button>
-        <button class="tab" role="tab" id="tabSearch" aria-selected="false" aria-controls="paneSearch"></button>
       </div>
 
       <div class="pane" id="paneQueue" role="tabpanel">
@@ -2772,7 +2771,12 @@ track.addEventListener('keydown', (e) => {
 /* ---------------- views and tabs ----------------
    `view` drives the mobile layout (which pane is mounted); `tab` picks the side pane
    on every size. They are kept in step so switching on mobile also switches on desktop. */
-const TABS = ['queue', 'lyrics', 'search'];
+/* Search has a pane but no tab: the header's magnifier is the way in, and a
+   third tab beside these two was a button with nothing written on it. So the
+   panes and the tabs are two lists now, and the tablist simply clears its
+   selection while search is up -- which is what the bottom nav already does. */
+const PANES = ['queue', 'lyrics', 'search'];
+const TABS = ['queue', 'lyrics'];
 const VIEWS = ['player', 'queue', 'lyrics', 'search'];
 /* search is a view but not a nav stop: the header's magnifier is the way in, so
    the bar shows three and simply clears its selection while search is up */
@@ -2780,7 +2784,7 @@ const NAV_VIEWS = ['player', 'queue', 'lyrics'];
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
 /* the pane you left it on is nearly always the one you want back */
-let tab = TABS.includes(store.data.tab) ? store.data.tab : 'queue';
+let tab = PANES.includes(store.data.tab) ? store.data.tab : 'queue';
 let view = VIEWS.includes(store.data.view) ? store.data.view : 'player';
 
 function setTab(name) {
@@ -2789,10 +2793,12 @@ function setTab(name) {
   for (const t of TABS) {
     const btn = $('tab' + cap(t));
     btn.setAttribute('aria-selected', String(t === name));
-    /* a tablist is one stop on the tab key; the arrows move within it */
-    btn.tabIndex = t === name ? 0 : -1;
-    $('pane' + cap(t)).hidden = t !== name;
+    /* A tablist is one stop on the tab key; the arrows move within it. With
+       search showing there is no selected tab to be that stop, so the first
+       one holds it rather than leaving the list unreachable. */
+    btn.tabIndex = (t === name || (!TABS.includes(name) && t === TABS[0])) ? 0 : -1;
   }
+  for (const p of PANES) $('pane' + cap(p)).hidden = p !== name;
   if (name === 'queue') loadQueue();
   if (name === 'search' && !searchFound) renderHistory();
   if (name === 'lyrics') {
