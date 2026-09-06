@@ -84,14 +84,21 @@ body::before{
    the flat colour wash above. The wrapper is its own stacking context so the
    two layers' z-index only ever compete with each other, never with .app.
    Oversized well past the viewport and rotated about its own centre, so a
-   corner is never exposed as it turns. */
+   corner is never exposed as it turns.
+   The rotation is a plain CSS animation, not JS stepping a custom property --
+   stepping it at 24fps from the main thread forced a style recalculation on
+   this (huge, heavily blurred) layer every ~41ms and visibly lagged the page.
+   A @keyframes animation lets the compositor cache the blurred result as a
+   texture and just rotate it on the GPU, which is what Sunamu itself does. */
 .bg-art-wrap{position:fixed;inset:0;z-index:0;pointer-events:none}
+body.bg-anim .bg-art-wrap{animation:bg-rotate 60s ease-in-out infinite;will-change:transform}
+@keyframes bg-rotate{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){body.bg-anim .bg-art-wrap{animation:none}}
 .bg-art{
   position:absolute;top:-60%;left:-60%;right:-60%;bottom:-60%;
   background-size:cover;background-position:center;
   filter:blur(70px) saturate(1.4) brightness(.55);
   opacity:0;transition:opacity 900ms ease;
-  transform:rotate(var(--bg-angle,0deg));
 }
 /* the 'on' class just tracks which of the two layers holds the current image
    for crossfade purposes -- the whole wrapper only actually shows once the
@@ -3516,30 +3523,18 @@ function selectInfoTab(name) {
 for (const t of INFO_TABS) $('infoTab' + t).onclick = () => selectInfoTab(t);
 
 /* ---------------- animated background ----------------
-   The angle steps on a fixed 24fps interval rather than a CSS animation,
-   which would run at whatever rate the compositor felt like giving it -- the
-   ask was 24, not merely "smooth". Sunamu's own background (github.com/
-   Vistaus/Sunamu) is the reference: one revolution per 60s, eased rather than
-   constant-speed, so it breathes instead of visibly spinning. */
+   A plain CSS @keyframes animation (see .bg-art-wrap in the stylesheet) drives
+   the rotation now -- a JS interval stepping a custom property forced a style
+   recalculation on this huge, heavily blurred layer roughly 24 times a
+   second and visibly lagged the page. The compositor can run a CSS animation
+   on its own thread and rotate the already-blurred layer as a cached
+   texture, which is nearly free by comparison; @media(prefers-reduced-motion)
+   in the stylesheet takes care of turning it off, so there is nothing left
+   for this function to do beyond toggling the class. */
 const DISPLAY_BG = [['off', 'Static background'], ['on', 'Animated background']];
-let bgAnimTimer = null;
-const easeInOutSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
 
 function applyBgAnim() {
-  const on = store.data.bgAnim;
-  document.body.classList.toggle('bg-anim', !!on);
-  clearInterval(bgAnimTimer); bgAnimTimer = null;
-  if (!on || stillness.matches) {
-    document.documentElement.style.removeProperty('--bg-angle');
-    return;
-  }
-  const BG_FPS = 24, BG_LOOP_SECONDS = 60;
-  const stepFraction = 1 / BG_FPS / BG_LOOP_SECONDS;
-  let t = 0;
-  bgAnimTimer = setInterval(() => {
-    t = (t + stepFraction) % 1;
-    document.documentElement.style.setProperty('--bg-angle', easeInOutSine(t) * 360 + 'deg');
-  }, 1000 / BG_FPS);
+  document.body.classList.toggle('bg-anim', !!store.data.bgAnim);
 }
 
 /* the blurred backdrop follows setArt() 1:1 -- see the call in setArt() --
