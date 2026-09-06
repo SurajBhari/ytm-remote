@@ -652,6 +652,13 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
 }
 @media(hover:hover) and (pointer:fine){.pill:hover{background:#e6e6e6}}
 .label{font-size:12px;color:var(--text-3);margin-bottom:8px}
+.widget-opts{display:flex;gap:8px;flex-wrap:wrap}
+.widget-opts button{
+  height:32px;padding:0 14px;border-radius:999px;font-size:12px;font-weight:500;
+  background:rgba(255,255,255,.08);color:var(--text-2);
+}
+.widget-opts button.on{background:var(--text);color:#030303}
+@media(hover:hover) and (pointer:fine){.widget-opts button:not(.on):hover{background:rgba(255,255,255,.14)}}
 
 .toast{
   position:fixed;left:50%;bottom:calc(var(--bar-h) + 16px);transform:translateX(-50%);
@@ -691,6 +698,9 @@ body.offline .art-btn::after{content:none}
     <span class="grow"></span>
     <button class="ib small" id="btnSearch" aria-label="Search" title="Search">
       <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 0 3.5 10.9l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/></svg>
+    </button>
+    <button class="ib small" id="btnInfo" aria-label="Info" title="Info">
+      <svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/></svg>
     </button>
     <button class="ib small" id="btnSleep" aria-label="Sleep timer" title="Sleep timer">
       <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.91-.1-1.36A5.39 5.39 0 0 1 16.5 12.9 5.4 5.4 0 0 1 11.1 7.5a5.39 5.39 0 0 1 2.26-4.4A9.5 9.5 0 0 0 12 3z"/></svg><span id="sleepLeft" aria-hidden="true"></span>
@@ -853,8 +863,26 @@ body.offline .art-btn::after{content:none}
 </dialog>
 
 <dialog id="keysDlg">
-  <div class="dlg-head">Shortcuts<span style="flex:1"></span><button class="txtbtn" id="keysClose">Close</button></div>
-  <div class="dlg-body"><div class="keys" id="keysList"></div></div>
+  <div class="dlg-head">Info<span style="flex:1"></span><button class="txtbtn" id="keysClose">Close</button></div>
+  <div class="dlg-body">
+    <div class="keys" id="keysList"></div>
+    <div>
+      <div class="label">Streaming widget</div>
+      <div class="hint" style="margin-bottom:8px">
+        A transparent now-playing overlay for OBS. Paste the link below into a
+        Browser Source; OBS runs its own browser, so open the link there once
+        to connect it -- it does not share this tab's saved player.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="widget-opts" id="widgetThemes"></div>
+        <div class="widget-opts" id="widgetPause"></div>
+        <div style="display:flex;gap:8px">
+          <input class="field" id="widgetUrl" readonly style="flex:1;min-width:0">
+          <button class="txtbtn" id="widgetCopy">Copy link</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </dialog>
 
 <dialog id="sleepDlg">
@@ -875,7 +903,7 @@ body.offline .art-btn::after{content:none}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [] },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' } },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
@@ -2923,8 +2951,7 @@ document.addEventListener('keydown', (e) => {
   if (k === '?') {
     e.preventDefault();
     if ($('keysDlg').open) return $('keysDlg').close();
-    renderKeys();
-    return $('keysDlg').showModal();
+    return openInfo();
   }
   const map = { ' ': 'bPlay', n: 'bNext', p: 'bPrev', m: 'bMute', s: 'bShuffle', r: 'bRepeat', f: 'bFull', l: 'bLike' };
   const id = map[k];
@@ -3302,6 +3329,47 @@ function renderKeys() {
   section('Touch', GESTURES, 'span');
 }
 
+/* ---------------- streaming widget builder ----------------
+   Picks a theme and a paused-behaviour, both baked into the link as query
+   params -- the widget runs in OBS's own browser and has no access to this
+   page's settings, so the choices have to travel in the URL itself. */
+const WIDGET_THEMES = [['card', 'Card'], ['minimal', 'Minimal'], ['poster', 'Poster'], ['bar', 'Bar'], ['vinyl', 'Vinyl'], ['retro', 'Retro'], ['terminal', 'Terminal']];
+const WIDGET_PAUSE = [['dim', 'Dim when paused'], ['hide', 'Hide when paused']];
+
+function widgetUrl() {
+  const w = store.data.widget;
+  const u = new URL('widget.html', location.href);
+  u.search = new URLSearchParams({ theme: w.theme, pause: w.pause }).toString();
+  return u.toString();
+}
+
+function renderWidgetOpts() {
+  const w = store.data.widget;
+  const group = (box, options, key) => {
+    box.replaceChildren();
+    for (const [val, label] of options) {
+      const b = el('button', val === w[key] ? 'on' : '', label);
+      b.onclick = () => { w[key] = val; store.save(); renderWidgetOpts(); };
+      box.appendChild(b);
+    }
+  };
+  group($('widgetThemes'), WIDGET_THEMES, 'theme');
+  group($('widgetPause'), WIDGET_PAUSE, 'pause');
+  $('widgetUrl').value = widgetUrl();
+}
+
+$('widgetCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('widgetUrl').value); toast('Link copied'); }
+  catch { $('widgetUrl').select(); toast('Select and copy the link above', true); }
+};
+
+function openInfo() {
+  renderKeys();
+  renderWidgetOpts();
+  $('keysDlg').showModal();
+}
+
+$('btnInfo').onclick = openInfo;
 $('keysClose').onclick = () => $('keysDlg').close();
 
 /* ---------------- screen wake lock ----------------

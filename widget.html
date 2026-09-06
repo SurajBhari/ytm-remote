@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YTM Widget</title>
+<meta name="description" content="Transparent now-playing overlay for streaming, driven by the YTM Remote connection.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23030303'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23ff0033' stroke-width='2.6'/%3E%3Cpath d='M13.4 11.6 21 16l-7.6 4.4z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --accent:#ff0033;
+  --art-bg:#0f0f0f;
+  --text:#fff;
+  --text-2:rgba(255,255,255,.7);
+  --r-md:8px;
+  --r-sm:4px;
+  --font:'Roboto',system-ui,Arial,sans-serif; /* unslop-ignore */
+}
+@property --accent{syntax:'<color>';inherits:true;initial-value:#ff0033}
+@property --art-bg{syntax:'<color>';inherits:true;initial-value:#0f0f0f}
+:root{transition:--accent .7s ease,--art-bg .7s ease}
+@media(prefers-reduced-motion:reduce){:root{transition:none}}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:transparent;color:var(--text);font-family:var(--font);
+  font-variant-numeric:tabular-nums;overflow:hidden;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+}
+/* the widget only ever shows or hides as a whole; nothing behind it to reveal */
+.wrap{
+  position:fixed;inset:0;display:flex;align-items:flex-end;justify-content:flex-start;
+  padding:24px;opacity:0;transition:opacity .5s cubic-bezier(.2,0,0,1);
+}
+.wrap.show{opacity:1}
+/* the paused state the main app calls "dim" -- the art loses brightness in
+   place rather than the widget vanishing, so a glance still says what was
+   last playing */
+.wrap.dim .art-btn{filter:brightness(.62) saturate(.75) grayscale(90%)}
+.wrap,.art-btn{transition:opacity .5s cubic-bezier(.2,0,0,1),filter .5s cubic-bezier(.2,0,0,1)}
+@media(prefers-reduced-motion:reduce){.wrap,.art-btn{transition:opacity .2s linear}}
+
+/* ---- shared art block: two stacked layers, same dissolve as the main app ---- */
+.art-btn{position:relative;overflow:hidden;border-radius:var(--r-md);flex:none;
+  box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.45);}
+.art{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  border-radius:inherit;opacity:0;
+  transition:opacity .5s cubic-bezier(.2,0,0,1),scale .8s cubic-bezier(.2,0,0,1),filter .5s cubic-bezier(.2,0,0,1);
+}
+.art.on{opacity:1;scale:1;filter:none}
+.art.enter{scale:1.06;filter:blur(14px) saturate(1.3)}
+.art.leave{scale:.97;filter:blur(10px)}
+@media(prefers-reduced-motion:reduce){
+  .art{transition:opacity .2s linear}
+  .art.enter,.art.leave{scale:1;filter:none}
+}
+.art.dissolve{
+  opacity:1;scale:1;filter:none;transition:none;
+  -webkit-mask-image:var(--dissolve);mask-image:var(--dissolve);
+  -webkit-mask-size:100% 2400%;mask-size:100% 2400%;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  animation:art-dissolve .55s steps(24,jump-none) forwards;
+}
+@keyframes art-dissolve{
+  from{-webkit-mask-position:0 0;mask-position:0 0}
+  to{-webkit-mask-position:0 100%;mask-position:0 100%}
+}
+.meta{min-width:0}
+.title{font-size:18px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.artist{font-size:13px;font-weight:500;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.time{font-size:11px;font-weight:500;color:var(--text-2);text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.bar{position:relative;height:3px;border-radius:99px;background:rgba(255,255,255,.25);overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;width:0%;background:var(--accent);border-radius:inherit;transition:width .3s linear}
+
+/* ---- theme: card ---- */
+body[data-theme=card] .wrap{gap:14px}
+body[data-theme=card] .art-btn{width:96px;height:96px}
+body[data-theme=card] .meta{display:flex;flex-direction:column;justify-content:center;gap:6px;align-self:stretch;max-width:min(52vw,420px)}
+body[data-theme=card] .prog{display:flex;align-items:center;gap:8px;margin-top:2px}
+body[data-theme=card] .bar{flex:1}
+
+/* ---- theme: minimal (art only) ---- */
+body[data-theme=minimal] .wrap{padding:20px}
+body[data-theme=minimal] .art-btn{width:120px;height:120px}
+body[data-theme=minimal] .meta,body[data-theme=minimal] .prog{display:none}
+
+/* ---- theme: poster (full-bleed art, text over a bottom gradient) ---- */
+body[data-theme=poster] .wrap{padding:0;align-items:stretch}
+body[data-theme=poster] .art-btn{width:100%;height:100%;border-radius:0;box-shadow:none}
+body[data-theme=poster] .art{object-fit:cover}
+body[data-theme=poster] .meta{
+  position:absolute;left:0;right:0;bottom:0;padding:28px 28px 24px;z-index:2;
+  display:flex;flex-direction:column;gap:6px;
+  background:linear-gradient(to top,rgba(0,0,0,.75),rgba(0,0,0,0) 70%);
+}
+body[data-theme=poster] .title{font-size:26px}
+body[data-theme=poster] .artist{font-size:15px}
+body[data-theme=poster] .prog{display:flex;align-items:center;gap:8px;margin-top:4px}
+body[data-theme=poster] .bar{flex:1}
+
+/* ---- theme: bar (thin lower-third strip) ---- */
+/* every other theme reads .wrap's own flex row directly; .card only becomes a
+   box of its own for the pill this theme wraps around it */
+.card{display:contents}
+body[data-theme=bar] .wrap{left:24px;right:24px;bottom:24px;align-items:stretch;padding:0}
+body[data-theme=bar] .card{
+  display:flex;align-items:center;gap:12px;width:100%;padding:10px 16px 10px 10px;
+  border-radius:999px;background:rgba(15,15,15,.72);backdrop-filter:blur(10px);
+}
+body[data-theme=bar] .art-btn{width:44px;height:44px;border-radius:var(--r-sm);box-shadow:none}
+body[data-theme=bar] .meta{flex:1;min-width:0}
+body[data-theme=bar] .bar{margin-top:6px}
+
+/* ---- theme: vinyl (the cover as a spinning picture disc) ---- */
+body[data-theme=vinyl] .wrap{flex-direction:column;align-items:center;justify-content:flex-end;text-align:center;gap:12px}
+body[data-theme=vinyl] .art-btn{
+  width:160px;height:160px;border-radius:50%;
+  animation:vinyl-spin 9s linear infinite;
+}
+/* the record stops turning the moment the music does, same as the real thing */
+body[data-theme=vinyl] .art-btn.paused{animation-play-state:paused}
+/* grooves drawn over whatever cover arrives, so any art reads as a record
+   without needing to be one */
+body[data-theme=vinyl] .art-btn::before{
+  content:'';position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:repeating-radial-gradient(circle at 50% 50%,
+    rgba(0,0,0,0) 0, rgba(0,0,0,0) 3px, rgba(0,0,0,.3) 4px, rgba(0,0,0,0) 5.2px);
+}
+/* the spindle hole */
+body[data-theme=vinyl] .art-btn::after{
+  content:'';position:absolute;left:50%;top:50%;translate:-50% -50%;z-index:4;
+  width:10px;height:10px;border-radius:50%;background:#0b0b0b;
+  box-shadow:0 0 0 2px rgba(255,255,255,.5);
+}
+body[data-theme=vinyl] .meta{display:flex;flex-direction:column;align-items:center;gap:2px}
+body[data-theme=vinyl] .prog{display:none}
+@keyframes vinyl-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){body[data-theme=vinyl] .art-btn{animation:none}}
+
+/* ---- theme: retro (VHS-tinted cover, neon dual-tone text) ---- */
+body[data-theme=retro] .wrap{gap:14px}
+body[data-theme=retro] .art-btn{
+  width:100px;height:100px;border-radius:4px;
+  border:3px solid #ffcc00;box-shadow:0 0 0 2px #000,0 6px 18px rgba(0,0,0,.6);
+  filter:sepia(.25) saturate(1.4) contrast(1.05);
+}
+/* scanlines, drawn over the art rather than baked into it */
+body[data-theme=retro] .art-btn::after{
+  content:'';position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0,rgba(0,0,0,0) 2px,rgba(0,0,0,.25) 3px);
+}
+body[data-theme=retro] .meta{font-family:'Courier New',ui-monospace,monospace;display:flex;flex-direction:column;justify-content:center;gap:6px}
+body[data-theme=retro] .title{color:#ffcc00;text-shadow:1px 0 #ff2fd6,-1px 0 #00e5ff;font-size:17px;letter-spacing:.5px}
+body[data-theme=retro] .artist{color:#00e5ff;text-transform:uppercase;letter-spacing:1px;text-shadow:none}
+body[data-theme=retro] .time{color:#ffcc00;text-shadow:none}
+body[data-theme=retro] .bar{background:rgba(255,255,255,.15);height:4px}
+body[data-theme=retro] .bar i{background:linear-gradient(90deg,#ff2fd6,#00e5ff)}
+/* a camcorder REC light, since the whole theme is doing an old tape's job */
+body[data-theme=retro] .prog::before{
+  content:'\25CF REC';color:#ff2fd6;font-size:10px;margin-right:2px;
+  animation:retro-blink 1s steps(1) infinite;
+}
+@keyframes retro-blink{50%{opacity:0}}
+
+/* ---- theme: terminal (text only, no art -- a shell printing what's playing) ---- */
+body[data-theme=terminal] .art-btn{display:none}
+body[data-theme=terminal] .meta{
+  display:flex;flex-direction:column;gap:4px;min-width:240px;
+  font-family:ui-monospace,'SFMono-Regular','Courier New',monospace;
+  background:rgba(10,14,10,.85);border:1px solid rgba(255,255,255,.12);border-radius:8px;
+  padding:14px 16px;box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+body[data-theme=terminal] .title{color:#3ef07c;font-size:14px;font-weight:400;text-shadow:none}
+body[data-theme=terminal] .title::before{content:'$ now-playing';display:block;color:rgba(255,255,255,.4);font-size:12px;margin-bottom:4px}
+body[data-theme=terminal] .title::after{content:'\258C';margin-left:6px;color:#3ef07c;animation:term-blink 1s steps(1) infinite}
+body[data-theme=terminal] .artist{color:rgba(255,255,255,.55);font-size:12px;text-shadow:none}
+body[data-theme=terminal] .artist::before{content:'> '}
+body[data-theme=terminal] .time{color:#3ef07c;font-size:11px;text-shadow:none}
+body[data-theme=terminal] .bar{height:2px;background:rgba(255,255,255,.15);border-radius:0}
+body[data-theme=terminal] .bar i{background:#3ef07c;border-radius:0}
+@keyframes term-blink{50%{opacity:0}}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <!-- .card only matters for the bar theme; the others read .wrap directly -->
+  <div class="card" id="card">
+    <span class="art-btn" id="artBtn">
+      <img class="art" id="art" alt="" draggable="false">
+      <img class="art" id="artB" alt="" draggable="false">
+    </span>
+    <div class="meta">
+      <div class="title" id="title">&nbsp;</div>
+      <div class="artist" id="artist">&nbsp;</div>
+      <div class="prog">
+        <span class="time" id="elapsed">0:00</span>
+        <span class="bar"><i id="fill"></i></span>
+        <span class="time" id="duration">0:00</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const THEME = ['card', 'minimal', 'poster', 'bar', 'vinyl', 'retro', 'terminal'].includes(qs.get('theme')) ? qs.get('theme') : 'card';
+const PAUSE_MODE = qs.get('pause') === 'hide' ? 'hide' : 'dim';
+document.body.dataset.theme = THEME;
+const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+/* ---------------- connection: reuses the main app's saved player ----------------
+   Same localStorage key and shape as index.html, so this only lights up once
+   this browser has connected to a player at least once -- OBS's Browser Source
+   is its own Chromium profile, so that usually means opening this URL once and
+   filling the fallback form below, or opening it in a normal tab first. */
+const KEY = 'ytmRemote.v1';
+const store = {
+  data: { connections: [], activeId: null },
+  load() { try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {} if (!Array.isArray(this.data.connections)) this.data.connections = []; return this.data; },
+  save() { try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch {} }
+};
+store.load();
+const active = () => store.data.connections.find(c => c.id === store.data.activeId) || null;
+
+const api = {
+  async call(method, path, body) {
+    const c = active();
+    if (!c) throw new Error('No player selected');
+    const res = await fetch(c.url.replace(/\/+$/, '') + path, {
+      method,
+      headers: Object.assign(
+        c.token ? { Authorization: 'Bearer ' + c.token } : {},
+        body !== undefined ? { 'Content-Type': 'application/json' } : {}
+      ),
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      mode: 'cors', cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Player returned ' + res.status);
+    if (res.status === 204) return null;
+    const text = await res.text();
+    if (!text) return null;
+    try { return JSON.parse(text); } catch { return null; }
+  },
+  get: (p) => api.call('GET', p),
+  async token(url, id) {
+    const res = await fetch(url.replace(/\/+$/, '') + '/auth/' + encodeURIComponent(id), { method: 'POST', mode: 'cors' });
+    if (!res.ok) throw new Error(res.status === 403 ? 'The desktop app refused the request' : 'Auth failed with ' + res.status);
+    return (await res.json()).accessToken;
+  }
+};
+
+/* ---------------- fallback connect form ----------------
+   Shown only when this browser has no saved player yet, so a fresh OBS
+   Browser Source can self-configure without ever opening the main app. */
+function showFallback() {
+  if ($('fallback')) return;
+  const box = document.createElement('div');
+  box.id = 'fallback';
+  box.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;font-family:var(--font);background:rgba(15,15,15,.55)';
+  box.innerHTML = `
+    <form id="fbForm" style="display:flex;flex-direction:column;gap:8px;width:min(320px,100%);background:#181818;border-radius:12px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.5)">
+      <div style="font-size:13px;font-weight:500;color:#fff">Connect this widget</div>
+      <input id="fbUrl" placeholder="http://localhost:26538" value="http://localhost:26538" style="height:36px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:#0f0f0f;color:#fff;padding:0 10px;font:inherit">
+      <input id="fbToken" placeholder="Access token -- leave blank to request one" style="height:36px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:#0f0f0f;color:#fff;padding:0 10px;font:inherit">
+      <button style="height:36px;border-radius:999px;background:#ff0033;color:#fff;font-weight:500;font:inherit">Connect</button>
+      <div id="fbErr" style="font-size:12px;color:#ff6b6b;min-height:14px"></div>
+    </form>`;
+  document.body.appendChild(box);
+  $('fbForm').onsubmit = async (e) => {
+    e.preventDefault();
+    let url = $('fbUrl').value.trim();
+    if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
+    $('fbErr').textContent = '';
+    try {
+      new URL(url);
+      let token = $('fbToken').value.trim();
+      if (!token) token = await api.token(url, 'ytm-remote-widget');
+      store.data.connections = [{ id: 'w' + Date.now().toString(36), name: 'Widget', url, token, clientId: 'ytm-remote-widget' }];
+      store.data.activeId = store.data.connections[0].id;
+      store.save();
+      box.remove();
+      connect();
+    } catch (err) { $('fbErr').textContent = err.message; }
+  };
+}
+
+/* ---------------- state ---------------- */
+const state = { song: null, paused: true, duration: 0, elapsed: 0, at: 0 };
+const mmss = (s) => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+function bankTime() { if (!state.duration) return; state.elapsed = currentElapsed(); state.at = performance.now(); }
+function setPaused(next) { if (next === state.paused) return; bankTime(); state.paused = next; renderVisibility(); }
+function applyPosition(reported, force) {
+  if (typeof reported !== 'number' || !isFinite(reported) || reported < 0) return;
+  if (Number.isInteger(reported)) reported += 0.5;
+  if (state.duration && reported > state.duration + 1) { if (force) { state.elapsed = 0; state.at = performance.now(); } return; }
+  if (force || !state.duration || Math.abs(reported - currentElapsed()) > 1.5) { state.elapsed = reported; state.at = performance.now(); }
+}
+const currentElapsed = () => { if (!state.duration) return 0; let e = state.elapsed; if (!state.paused) e += (performance.now() - state.at) / 1000; return Math.min(e, state.duration); };
+
+function renderProgress() {
+  const d = state.duration, e = currentElapsed();
+  $('elapsed').textContent = mmss(e);
+  $('duration').textContent = mmss(d);
+  $('fill').style.width = (d ? (e / d) * 100 : 0) + '%';
+}
+
+function renderVisibility() {
+  const wrap = $('wrap');
+  const hasSong = !!(state.song && state.song.videoId);
+  wrap.classList.toggle('show', hasSong && !(PAUSE_MODE === 'hide' && state.paused));
+  wrap.classList.toggle('dim', PAUSE_MODE === 'dim' && state.paused);
+  /* the vinyl theme stops the record turning while paused; every other theme
+     ignores the class */
+  $('artBtn').classList.toggle('paused', state.paused);
+}
+
+/* ---------------- art dissolve (same technique as the main app) ---------------- */
+const artLayers = [$('art'), $('artB')];
+let artTop = 0, artUrl = '', artGen = 0, artPending = null;
+let dissolveUrl = '';
+const smoothstep = t => t * t * (3 - 2 * t);
+
+function noiseField(n) {
+  const out = new Float32Array(n * n);
+  for (const [cells, amp] of [[6, .7], [12, 1], [24, .9], [48, .45]]) {
+    const w = cells + 1, g = new Float32Array(w * w);
+    for (let i = 0; i < g.length; i++) g[i] = Math.random();
+    for (let y = 0; y < n; y++) {
+      const fy = y / n * cells, y0 = fy | 0, sy = smoothstep(fy - y0);
+      for (let x = 0; x < n; x++) {
+        const fx = x / n * cells, x0 = fx | 0, sx = smoothstep(fx - x0);
+        const top = g[y0 * w + x0] + (g[y0 * w + x0 + 1] - g[y0 * w + x0]) * sx;
+        const bot = g[(y0 + 1) * w + x0] + (g[(y0 + 1) * w + x0 + 1] - g[(y0 + 1) * w + x0]) * sx;
+        out[y * n + x] += amp * (top + (bot - top) * sy);
+      }
+    }
+  }
+  const rank = Array.from(out.keys()).sort((a, b) => out[a] - out[b]);
+  for (let r = 0; r < rank.length; r++) out[rank[r]] = r / (rank.length - 1);
+  return out;
+}
+
+function bakeDissolve() {
+  const N = 192, FRAMES = 24, EDGE = .3;
+  const c = document.createElement('canvas');
+  c.width = N; c.height = N * FRAMES;
+  const ctx = c.getContext('2d');
+  const sheet = ctx.createImageData(N, N * FRAMES), px = sheet.data;
+  const field = noiseField(N);
+  for (let f = 0; f < FRAMES; f++) {
+    const t = f / (FRAMES - 1) * (1 + EDGE);
+    const base = f * N * N * 4;
+    for (let i = 0; i < field.length; i++) {
+      const p = base + i * 4;
+      px[p] = px[p + 1] = px[p + 2] = 255;
+      px[p + 3] = Math.max(0, Math.min(1, (t - field[i]) / EDGE)) * 255;
+    }
+  }
+  ctx.putImageData(sheet, 0, 0);
+  c.toBlob((b) => {
+    if (!b) return;
+    dissolveUrl = URL.createObjectURL(b);
+    document.documentElement.style.setProperty('--dissolve', `url("${dissolveUrl}")`);
+  });
+}
+
+const stillness = matchMedia('(prefers-reduced-motion: reduce)');
+
+function paintArt(src) {
+  const from = artLayers[artTop], to = artLayers[artTop ^ 1];
+  artPending = src;
+  to.src = src;
+  const reveal = () => {
+    if (artPending === src) artPending = null;
+    if (artUrl !== src) return;
+    const gen = ++artGen;
+    to.style.zIndex = '1'; from.style.zIndex = '0';
+    to.classList.remove('leave', 'on', 'enter', 'dissolve');
+    if (dissolveUrl && !stillness.matches) {
+      void to.offsetWidth;
+      to.classList.add('on', 'dissolve');
+      to.addEventListener('animationend', () => {
+        if (gen !== artGen) return;
+        to.classList.remove('dissolve');
+        from.classList.remove('on', 'dissolve');
+      }, { once: true });
+    } else {
+      to.classList.add('enter');
+      void to.offsetWidth;
+      to.classList.remove('enter');
+      to.classList.add('on');
+      from.classList.remove('on');
+      from.classList.add('leave');
+    }
+    artTop ^= 1;
+  };
+  if (!to.decode) reveal(); else to.decode().then(reveal, reveal);
+}
+
+function setArt(url) {
+  const next = url || BLANK;
+  if (next === artUrl) return;
+  artUrl = next;
+  if (next === BLANK) return paintArt(BLANK);
+  const pre = new Image();
+  const go = () => { if (artUrl === next) paintArt(next); };
+  pre.src = next;
+  if (pre.decode) pre.decode().then(go, go); else pre.onload = pre.onerror = go;
+}
+
+/* ---------------- accent colour from the art (card / poster / bar) ---------------- */
+function paletteFrom(img) {
+  const N = 24;
+  const c = document.createElement('canvas');
+  c.width = c.height = N;
+  const cx = c.getContext('2d', { willReadFrequently: true });
+  cx.drawImage(img, 0, 0, N, N);
+  let px;
+  try { px = cx.getImageData(0, 0, N, N).data; } catch { return null; }
+  const buckets = new Array(24).fill(null).map(() => ({ w: 0, s: 0, n: 0 }));
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] < 200) continue;
+    const r = px[i] / 255, g = px[i + 1] / 255, b = px[i + 2] / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    const l = (mx + mn) / 2;
+    if (l < 0.12 || l > 0.94) continue;
+    const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    if (s < 0.18) continue;
+    let h = 0;
+    if (d !== 0) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; }
+    h = (h * 60 + 360) % 360;
+    const weight = s * (1 - Math.abs(l - 0.5));
+    const bk = buckets[Math.floor(h / 15)];
+    bk.w += weight; bk.s += s; bk.n++; bk.h = (bk.h || 0) + h;
+  }
+  let best = null;
+  for (const b of buckets) if (b.n && (!best || b.w > best.w)) best = b;
+  if (!best || best.w < 0.6) return null;
+  return { h: best.h / best.n, s: best.s / best.n };
+}
+
+function applyTheme(pal) {
+  const root = document.documentElement.style;
+  if (!pal) { root.setProperty('--accent', '#ff0033'); root.setProperty('--art-bg', '#0f0f0f'); return; }
+  const h = Math.round(pal.h), s = Math.round(Math.min(0.9, Math.max(0.45, pal.s)) * 100);
+  root.setProperty('--accent', `hsl(${h} ${s}% 62%)`);
+  root.setProperty('--art-bg', `hsl(${h} ${Math.round(s * 0.55)}% 14%)`);
+}
+
+async function themeFromArt(url) {
+  if (!url) return applyTheme(null);
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    const blob = await res.blob();
+    const bmp = await createImageBitmap(blob);
+    applyTheme(paletteFrom(bmp));
+    bmp.close?.();
+  } catch { applyTheme(null); }
+}
+
+/* ---------------- rendering the current track ---------------- */
+function renderSong() {
+  const s = state.song;
+  $('title').textContent = (s && s.title) || '';
+  $('artist').textContent = (s && s.artist) || '';
+  setArt(s && s.imageSrc);
+  themeFromArt(s && s.imageSrc);
+  renderVisibility();
+}
+
+/* ---------------- polling + socket (song only, no controls) ---------------- */
+let lastVideoId = null, ws = null, wsRetry = 0, wsTimer = null, lastPush = 0, songTimer = null, lastTick = 0, lastPoll = 0;
+
+async function pollSong() {
+  if (!active()) return;
+  try {
+    const s = await api.get('/api/v1/song');
+    if (!s) { state.song = null; state.duration = 0; state.elapsed = 0; state.paused = true; lastVideoId = null; renderSong(); renderProgress(); return; }
+    const changed = s.videoId !== lastVideoId;
+    lastVideoId = s.videoId;
+    state.song = s;
+    state.duration = s.songDuration || 0;
+    setPaused(!!s.isPaused);
+    if (typeof s.elapsedSeconds === 'number') applyPosition(s.elapsedSeconds, changed);
+    else if (changed) applyPosition(0, true);
+    if (changed) renderSong();
+    renderProgress();
+  } catch {}
+}
+
+function closeSocket() { clearTimeout(wsTimer); wsTimer = null; if (ws) { try { ws.onclose = null; ws.onmessage = null; ws.close(); } catch {} ws = null; } }
+function scheduleReconnect() { if (!active() || wsTimer) return; const wait = Math.min(30000, 1000 * Math.pow(2, wsRetry++)); wsTimer = setTimeout(() => { wsTimer = null; openSocket(); }, wait); }
+
+function openSocket() {
+  closeSocket();
+  const c = active();
+  if (!c) return;
+  let u;
+  try { u = new URL(c.url); } catch { return; }
+  u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+  u.pathname = '/api/v1/ws';
+  if (c.token) u.searchParams.set('token', c.token);
+  let sock;
+  try { sock = new WebSocket(u.toString()); } catch { return scheduleReconnect(); }
+  ws = sock;
+  sock.onopen = () => { if (ws === sock) wsRetry = 0; };
+  sock.onclose = () => { if (ws !== sock) return; ws = null; scheduleReconnect(); };
+  sock.onerror = () => {};
+  sock.onmessage = (ev) => {
+    if (ws !== sock) return;
+    lastPush = performance.now();
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    if (m.type !== 'PLAYER_INFO') return;
+    if (typeof m.isPlaying === 'boolean') setPaused(!m.isPlaying);
+    if (typeof m.position === 'number') applyPosition(m.position, false);
+    if (m.song && m.song.videoId) {
+      const fresh = m.song.videoId !== lastVideoId;
+      state.song = Object.assign({}, state.song, m.song);
+      state.duration = m.song.songDuration || state.duration;
+      if (fresh) { lastVideoId = m.song.videoId; renderSong(); }
+      else if (m.song.imageSrc && m.song.imageSrc !== artUrl) renderSong();
+    }
+    renderProgress();
+  };
+}
+
+function connect() {
+  clearInterval(songTimer);
+  wsRetry = 0; lastPush = 0;
+  if (!active()) { closeSocket(); showFallback(); return; }
+  const fb = $('fallback'); if (fb) fb.remove();
+  openSocket();
+  pollSong();
+  lastTick = 0; lastPoll = 0;
+  songTimer = setInterval(() => {
+    const now = performance.now();
+    if (lastTick && now - lastTick > 15000) { lastTick = now; closeSocket(); openSocket(); lastPoll = 0; return pollSong(); }
+    lastTick = now;
+    if (now - lastPush < 3000) return;
+    if (now - lastPoll < (document.hidden ? 5000 : 1000)) return;
+    lastPoll = now;
+    pollSong();
+  }, 1000);
+}
+
+function frame() { if (state.duration && !state.paused) renderProgress(); requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+
+requestIdleCallback ? requestIdleCallback(bakeDissolve) : setTimeout(bakeDissolve, 200);
+connect();
+</script>
+</body>
+</html>
