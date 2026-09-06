@@ -71,12 +71,34 @@ body{
   text-wrap:pretty;
   overflow:hidden;
 }
-/* art-derived wash, the way the reference tints its player page */
+/* art-derived wash, the way the reference tints its player page. This is the
+   default background; turning on the Display tab's animated background hides
+   it behind the blurred-cover layer below instead of altering it. */
 body::before{
   content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   background:repeating-linear-gradient(180deg,var(--art-bg) 0%,var(--bg) 100%);
   transition:background 700ms ease,opacity 700ms ease;
 }
+/* ---------------- animated background ----------------
+   The current cover, blown up and blurred past recognition, standing in for
+   the flat colour wash above. The wrapper is its own stacking context so the
+   two layers' z-index only ever compete with each other, never with .app.
+   Oversized well past the viewport and rotated about its own centre, so a
+   corner is never exposed as it turns. */
+.bg-art-wrap{position:fixed;inset:0;z-index:0;pointer-events:none}
+.bg-art{
+  position:absolute;top:-60%;left:-60%;right:-60%;bottom:-60%;
+  background-size:cover;background-position:center;
+  filter:blur(70px) saturate(1.4) brightness(.55);
+  opacity:0;transition:opacity 900ms ease;
+  transform:rotate(var(--bg-angle,0deg));
+}
+/* the 'on' class just tracks which of the two layers holds the current image
+   for crossfade purposes -- the whole wrapper only actually shows once the
+   Display tab's animated background is switched on */
+body.bg-anim .bg-art.on{opacity:1}
+body.bg-anim::before{opacity:0}
+@media(prefers-reduced-motion:reduce){.bg-art{transition:opacity 300ms linear}}
 /* paused is the lights going down. The art-derived wash pulls back towards the
    base colour and the covers lose their brightness, so a glance at the page
    says the music has stopped without reading the play icon. The cover is dimmed
@@ -705,6 +727,10 @@ body.offline .art-btn::after{content:none}
 </style>
 </head>
 <body data-view="player">
+<div class="bg-art-wrap" aria-hidden="true">
+  <div class="bg-art" id="bgArt"></div>
+  <div class="bg-art" id="bgArtB"></div>
+</div>
 <div class="app">
 
   <header class="top">
@@ -884,10 +910,19 @@ body.offline .art-btn::after{content:none}
       <button class="tab" role="tab" id="infoTabShortcuts" aria-selected="true" aria-controls="infoPaneShortcuts">Shortcuts</button>
       <button class="tab" role="tab" id="infoTabLyrics" aria-selected="false" aria-controls="infoPaneLyrics">Lyrics</button>
       <button class="tab" role="tab" id="infoTabWidget" aria-selected="false" aria-controls="infoPaneWidget">Widget</button>
+      <button class="tab" role="tab" id="infoTabDisplay" aria-selected="false" aria-controls="infoPaneDisplay">Display</button>
     </div>
 
     <div id="infoPaneShortcuts" role="tabpanel">
       <div class="keys" id="keysList"></div>
+    </div>
+
+    <div id="infoPaneDisplay" role="tabpanel" hidden>
+      <div class="hint" style="margin-bottom:8px">
+        The page's background wash is drawn from the current cover. Animating
+        it lets the colour drift slowly rather than sitting still.
+      </div>
+      <div class="widget-opts" id="displayBg"></div>
     </div>
 
     <div id="infoPaneLyrics" role="tabpanel" hidden>
@@ -909,7 +944,6 @@ body.offline .art-btn::after{content:none}
       <div style="display:flex;flex-direction:column;gap:8px">
         <div class="widget-opts" id="widgetThemes"></div>
         <div class="widget-opts" id="widgetPause"></div>
-        <div class="widget-opts" id="widgetBg"></div>
         <div style="display:flex;gap:8px">
           <input class="field" id="widgetUrl" readonly style="flex:1;min-width:0">
           <button class="txtbtn" id="widgetCopy">Copy link</button>
@@ -937,7 +971,7 @@ body.offline .art-btn::after{content:none}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim', bg: 'off' } },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
@@ -1436,6 +1470,7 @@ function setArt(url) {
     return;
   }
   artUrl = next;
+  setBgArt(next === BLANK ? '' : next);
   /* Claimed now, synchronously. A swipe is a cut, and whether it was one cannot
      be decided after a decode has been waited on -- by then the landing may have
      been taken by a duplicate call, or given up by the fallback timer. */
@@ -3391,21 +3426,11 @@ function renderKeys() {
    page's settings, so the choices have to travel in the URL itself. */
 const WIDGET_THEMES = [['card', 'Card'], ['minimal', 'Minimal'], ['poster', 'Poster'], ['bar', 'Bar'], ['vinyl', 'Vinyl'], ['retro', 'Retro'], ['terminal', 'Terminal']];
 const WIDGET_PAUSE = [['dim', 'Dim when paused'], ['hide', 'Hide when paused']];
-const WIDGET_BG = [['off', 'Plain background'], ['on', 'Animated background']];
-
-/* an install that saved widget prefs before `bg` existed has a `widget` object
-   missing that key -- filled in here rather than migrated, since every read
-   goes through this */
-function widgetPrefs() {
-  const w = store.data.widget;
-  if (!w.bg) w.bg = 'off';
-  return w;
-}
 
 function widgetUrl() {
-  const w = widgetPrefs();
+  const w = store.data.widget;
   const u = new URL('widget.html', location.href);
-  const params = { theme: w.theme, pause: w.pause, bg: w.bg };
+  const params = { theme: w.theme, pause: w.pause };
   /* the widget runs in OBS's own browser, which never sees this tab's saved
      connection, so the address and token travel in the link instead */
   const c = active();
@@ -3415,7 +3440,7 @@ function widgetUrl() {
 }
 
 function renderWidgetOpts() {
-  const w = widgetPrefs();
+  const w = store.data.widget;
   const group = (box, options, key) => {
     box.replaceChildren();
     for (const [val, label] of options) {
@@ -3426,7 +3451,6 @@ function renderWidgetOpts() {
   };
   group($('widgetThemes'), WIDGET_THEMES, 'theme');
   group($('widgetPause'), WIDGET_PAUSE, 'pause');
-  group($('widgetBg'), WIDGET_BG, 'bg');
   $('widgetUrl').value = widgetUrl();
 }
 
@@ -3480,7 +3504,7 @@ function renderLyricProviders() {
   });
 }
 
-const INFO_TABS = ['Shortcuts', 'Lyrics', 'Widget'];
+const INFO_TABS = ['Shortcuts', 'Lyrics', 'Widget', 'Display'];
 
 function selectInfoTab(name) {
   for (const t of INFO_TABS) {
@@ -3491,10 +3515,66 @@ function selectInfoTab(name) {
 }
 for (const t of INFO_TABS) $('infoTab' + t).onclick = () => selectInfoTab(t);
 
+/* ---------------- animated background ----------------
+   The angle steps on a fixed 24fps interval rather than a CSS animation,
+   which would run at whatever rate the compositor felt like giving it --
+   the ask was 24, not merely "smooth". One full revolution every 24s. */
+const DISPLAY_BG = [['off', 'Static background'], ['on', 'Animated background']];
+let bgAnimTimer = null;
+
+function applyBgAnim() {
+  const on = store.data.bgAnim;
+  document.body.classList.toggle('bg-anim', !!on);
+  clearInterval(bgAnimTimer); bgAnimTimer = null;
+  if (!on || stillness.matches) {
+    document.documentElement.style.removeProperty('--bg-angle');
+    return;
+  }
+  const BG_FPS = 24, BG_LOOP_SECONDS = 24;
+  const degPerTick = 360 / BG_LOOP_SECONDS / BG_FPS;
+  let angle = 0;
+  bgAnimTimer = setInterval(() => {
+    angle = (angle + degPerTick) % 360;
+    document.documentElement.style.setProperty('--bg-angle', angle + 'deg');
+  }, 1000 / BG_FPS);
+}
+
+/* the blurred backdrop follows setArt() 1:1 -- see the call in setArt() --
+   and crossfades the same way the visible cover's two layers do, just with a
+   plain opacity fade: at this size and blur a pixel-dissolve buys nothing */
+const bgArtLayers = [$('bgArt'), $('bgArtB')];
+let bgArtTop = 0, bgArtUrl = '';
+
+function setBgArt(url) {
+  const next = url || '';
+  if (next === bgArtUrl) return;
+  bgArtUrl = next;
+  const from = bgArtLayers[bgArtTop], to = bgArtLayers[bgArtTop ^ 1];
+  if (!next) { from.classList.remove('on'); to.classList.remove('on'); return; }
+  to.style.backgroundImage = `url("${next}")`;
+  to.style.zIndex = '1'; from.style.zIndex = '0';
+  void to.offsetWidth;              // start the fade from a frame of its own
+  to.classList.add('on');
+  from.classList.remove('on');
+  bgArtTop ^= 1;
+}
+
+function renderDisplayOpts() {
+  const box = $('displayBg');
+  box.replaceChildren();
+  for (const [val, label] of DISPLAY_BG) {
+    const on = (val === 'on') === !!store.data.bgAnim;
+    const b = el('button', on ? 'on' : '', label);
+    b.onclick = () => { store.data.bgAnim = val === 'on'; store.save(); applyBgAnim(); renderDisplayOpts(); };
+    box.appendChild(b);
+  }
+}
+
 function openInfo() {
   renderKeys();
   renderLyricProviders();
   renderWidgetOpts();
+  renderDisplayOpts();
   selectInfoTab('Shortcuts');
   $('keysDlg').showModal();
 }
@@ -3632,6 +3712,7 @@ if ('serviceWorker' in navigator) {
 if (window.requestIdleCallback) requestIdleCallback(bakeDissolve); else setTimeout(bakeDissolve, 400);
 
 renderSong(); renderProgress(); renderTransport(); renderFullscreen(); renderConnection(); renderHistory();
+applyBgAnim();
 if (!store.data.connections.length) { renderConns(); dlg.showModal(); }
 else connect();
 </script>
