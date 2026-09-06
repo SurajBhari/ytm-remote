@@ -78,9 +78,14 @@ body{
 .bar i{position:absolute;inset:0 auto 0 0;width:0%;background:var(--accent);border-radius:inherit;transition:width .3s linear}
 
 /* ---- theme: card ---- */
-body[data-theme=card] .wrap{gap:14px}
+/* .card is given real dimensions here (rather than reading through as
+   `contents`, the default) so the row's cross axis is the card's own natural
+   height, not the fixed, full-viewport .wrap -- align-self:stretch on .meta
+   used to stretch it to the height of the whole page, leaving the text
+   centred on the screen instead of centred on the cover beside it */
+body[data-theme=card] .card{display:flex;align-items:center;gap:14px}
 body[data-theme=card] .art-btn{width:96px;height:96px}
-body[data-theme=card] .meta{display:flex;flex-direction:column;justify-content:center;gap:6px;align-self:stretch;max-width:min(52vw,420px)}
+body[data-theme=card] .meta{display:flex;flex-direction:column;justify-content:center;gap:6px;max-width:min(52vw,420px)}
 body[data-theme=card] .prog{display:flex;align-items:center;gap:8px;margin-top:2px}
 body[data-theme=card] .bar{flex:1}
 
@@ -107,7 +112,11 @@ body[data-theme=poster] .bar{flex:1}
 /* every other theme reads .wrap's own flex row directly; .card only becomes a
    box of its own for the pill this theme wraps around it */
 .card{display:contents}
-body[data-theme=bar] .wrap{left:24px;right:24px;bottom:24px;align-items:stretch;padding:0}
+/* inset shorthand resets `top` to auto along with the rest -- overriding just
+   left/right/bottom left the inherited top:0 in place, so the "strip" was
+   actually stretching from the top of the screen down to 24px from the
+   bottom, not sitting as a slim bar near it */
+body[data-theme=bar] .wrap{inset:auto 24px 24px 24px;align-items:stretch;padding:0}
 body[data-theme=bar] .card{
   display:flex;align-items:center;gap:12px;width:100%;padding:10px 16px 10px 10px;
   border-radius:999px;background:rgba(15,15,15,.72);backdrop-filter:blur(10px);

@@ -3517,10 +3517,13 @@ for (const t of INFO_TABS) $('infoTab' + t).onclick = () => selectInfoTab(t);
 
 /* ---------------- animated background ----------------
    The angle steps on a fixed 24fps interval rather than a CSS animation,
-   which would run at whatever rate the compositor felt like giving it --
-   the ask was 24, not merely "smooth". One full revolution every 24s. */
+   which would run at whatever rate the compositor felt like giving it -- the
+   ask was 24, not merely "smooth". Sunamu's own background (github.com/
+   Vistaus/Sunamu) is the reference: one revolution per 60s, eased rather than
+   constant-speed, so it breathes instead of visibly spinning. */
 const DISPLAY_BG = [['off', 'Static background'], ['on', 'Animated background']];
 let bgAnimTimer = null;
+const easeInOutSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
 
 function applyBgAnim() {
   const on = store.data.bgAnim;
@@ -3530,12 +3533,12 @@ function applyBgAnim() {
     document.documentElement.style.removeProperty('--bg-angle');
     return;
   }
-  const BG_FPS = 24, BG_LOOP_SECONDS = 24;
-  const degPerTick = 360 / BG_LOOP_SECONDS / BG_FPS;
-  let angle = 0;
+  const BG_FPS = 24, BG_LOOP_SECONDS = 60;
+  const stepFraction = 1 / BG_FPS / BG_LOOP_SECONDS;
+  let t = 0;
   bgAnimTimer = setInterval(() => {
-    angle = (angle + degPerTick) % 360;
-    document.documentElement.style.setProperty('--bg-angle', angle + 'deg');
+    t = (t + stepFraction) % 1;
+    document.documentElement.style.setProperty('--bg-angle', easeInOutSine(t) * 360 + 'deg');
   }, 1000 / BG_FPS);
 }
 
