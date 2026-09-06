@@ -660,6 +660,21 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
 .widget-opts button.on{background:var(--text);color:#030303}
 @media(hover:hover) and (pointer:fine){.widget-opts button:not(.on):hover{background:rgba(255,255,255,.14)}}
 
+.lp-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--r-md);background:#181818}
+.lp-row.off{opacity:.5}
+.lp-row .n{flex:1;font-size:13px}
+.lp-row .n small{display:block;color:var(--text-3);font-size:11px;margin-top:2px}
+.lp-row .toggle{
+  height:28px;padding:0 10px;border-radius:999px;font-size:11px;font-weight:500;
+  background:rgba(255,255,255,.1);color:var(--text-2);flex:none;
+}
+.lp-row .toggle.on{background:var(--accent);color:#fff}
+.lp-row .order{display:flex;gap:2px;flex:none}
+.lp-row .order button{width:28px;height:28px;border-radius:var(--r-round);display:grid;place-items:center;color:var(--text-2)}
+.lp-row .order button:disabled{opacity:.25;cursor:default}
+@media(hover:hover) and (pointer:fine){.lp-row .order button:not(:disabled):hover{background:var(--hover);color:var(--text)}}
+.lp-row .order svg{width:16px;height:16px;fill:currentColor}
+
 .toast{
   position:fixed;left:50%;bottom:calc(var(--bar-h) + 16px);transform:translateX(-50%);
   background:#f1f1f1;color:#030303;border-radius:var(--r-md);padding:12px 16px;font-size:13px;
@@ -865,17 +880,36 @@ body.offline .art-btn::after{content:none}
 <dialog id="keysDlg">
   <div class="dlg-head">Info<span style="flex:1"></span><button class="txtbtn" id="keysClose">Close</button></div>
   <div class="dlg-body">
-    <div class="keys" id="keysList"></div>
-    <div>
-      <div class="label">Streaming widget</div>
+    <div class="tabs" role="tablist" style="padding-bottom:0">
+      <button class="tab" role="tab" id="infoTabShortcuts" aria-selected="true" aria-controls="infoPaneShortcuts">Shortcuts</button>
+      <button class="tab" role="tab" id="infoTabLyrics" aria-selected="false" aria-controls="infoPaneLyrics">Lyrics</button>
+      <button class="tab" role="tab" id="infoTabWidget" aria-selected="false" aria-controls="infoPaneWidget">Widget</button>
+    </div>
+
+    <div id="infoPaneShortcuts" role="tabpanel">
+      <div class="keys" id="keysList"></div>
+    </div>
+
+    <div id="infoPaneLyrics" role="tabpanel" hidden>
       <div class="hint" style="margin-bottom:8px">
-        A transparent now-playing overlay for OBS. Paste the link below into a
-        Browser Source; OBS runs its own browser, so open the link there once
-        to connect it -- it does not share this tab's saved player.
+        Providers are tried in this order; the first one with a usable match
+        wins. Turn a source off to skip it, or reorder to change who goes first.
+      </div>
+      <div id="lyricProviderList" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+
+    <div id="infoPaneWidget" role="tabpanel" hidden>
+      <div class="hint" style="margin-bottom:8px">
+        A transparent now-playing overlay for OBS. The link below carries your
+        player's address and token, so pasting it into a Browser Source works
+        immediately -- OBS never needs to see this tab's saved connection.
+        Anyone with the link can reach your player, so keep it out of chat or
+        a public overlay list.
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <div class="widget-opts" id="widgetThemes"></div>
         <div class="widget-opts" id="widgetPause"></div>
+        <div class="widget-opts" id="widgetBg"></div>
         <div style="display:flex;gap:8px">
           <input class="field" id="widgetUrl" readonly style="flex:1;min-width:0">
           <button class="txtbtn" id="widgetCopy">Copy link</button>
@@ -903,7 +937,7 @@ body.offline .art-btn::after{content:none}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' } },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim', bg: 'off' } },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
@@ -2038,7 +2072,7 @@ async function getJSON(url) {
   return r.ok ? r.json() : null;
 }
 
-async function fetchLyrics(song) {
+async function fetchFromLRCLIB(song) {
   const title = song.title || '';
   const artist = primaryArtist(song.artist);
   const dur = Math.round(song.songDuration || 0);
@@ -2075,15 +2109,37 @@ async function fetchLyrics(song) {
     const hit = pickBest(pool, song);
     if (hit && (hit.synced || hit.plain)) return hit;
   }
+  return null;
+}
 
-  // 4. plain-text backstop
+async function fetchFromLyricsOvh(song) {
+  const title = song.title || '';
+  const artist = primaryArtist(song.artist);
   try {
     const j = await getJSON(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
     if (j && j.lyrics && j.lyrics.trim()) {
       return { synced: false, lines: null, plain: j.lyrics.trim(), note: '' };
     }
   } catch {}
+  return null;
+}
 
+/* the Lyrics tab in the Info panel lists these in whatever order the user has
+   set, and skips whichever are turned off -- see lyricProviderPrefs() */
+const LYRIC_PROVIDERS = {
+  lrclib: { label: 'LRCLIB', hint: 'Timed lyrics when a matching upload exists', fetch: fetchFromLRCLIB },
+  lyricsovh: { label: 'Lyrics.ovh', hint: 'Plain text only, no timing', fetch: fetchFromLyricsOvh }
+};
+
+async function fetchLyrics(song) {
+  for (const p of lyricProviderPrefs()) {
+    if (!p.on) continue;
+    const provider = LYRIC_PROVIDERS[p.id];
+    if (!provider) continue;
+    let hit = null;
+    try { hit = await provider.fetch(song); } catch {}
+    if (hit && (hit.synced || hit.plain)) return hit;
+  }
   return null;
 }
 
@@ -3335,16 +3391,31 @@ function renderKeys() {
    page's settings, so the choices have to travel in the URL itself. */
 const WIDGET_THEMES = [['card', 'Card'], ['minimal', 'Minimal'], ['poster', 'Poster'], ['bar', 'Bar'], ['vinyl', 'Vinyl'], ['retro', 'Retro'], ['terminal', 'Terminal']];
 const WIDGET_PAUSE = [['dim', 'Dim when paused'], ['hide', 'Hide when paused']];
+const WIDGET_BG = [['off', 'Plain background'], ['on', 'Animated background']];
+
+/* an install that saved widget prefs before `bg` existed has a `widget` object
+   missing that key -- filled in here rather than migrated, since every read
+   goes through this */
+function widgetPrefs() {
+  const w = store.data.widget;
+  if (!w.bg) w.bg = 'off';
+  return w;
+}
 
 function widgetUrl() {
-  const w = store.data.widget;
+  const w = widgetPrefs();
   const u = new URL('widget.html', location.href);
-  u.search = new URLSearchParams({ theme: w.theme, pause: w.pause }).toString();
+  const params = { theme: w.theme, pause: w.pause, bg: w.bg };
+  /* the widget runs in OBS's own browser, which never sees this tab's saved
+     connection, so the address and token travel in the link instead */
+  const c = active();
+  if (c) { params.url = c.url; if (c.token) params.token = c.token; }
+  u.search = new URLSearchParams(params).toString();
   return u.toString();
 }
 
 function renderWidgetOpts() {
-  const w = store.data.widget;
+  const w = widgetPrefs();
   const group = (box, options, key) => {
     box.replaceChildren();
     for (const [val, label] of options) {
@@ -3355,6 +3426,7 @@ function renderWidgetOpts() {
   };
   group($('widgetThemes'), WIDGET_THEMES, 'theme');
   group($('widgetPause'), WIDGET_PAUSE, 'pause');
+  group($('widgetBg'), WIDGET_BG, 'bg');
   $('widgetUrl').value = widgetUrl();
 }
 
@@ -3363,9 +3435,67 @@ $('widgetCopy').onclick = async () => {
   catch { $('widgetUrl').select(); toast('Select and copy the link above', true); }
 };
 
+/* ---------------- lyrics provider preference ----------------
+   Order decides who is tried first; turning a source off skips it entirely.
+   Kept as one array so order and on/off travel together. */
+function lyricProviderPrefs() {
+  const d = store.data;
+  if (!Array.isArray(d.lyricProviders) || !d.lyricProviders.length) {
+    d.lyricProviders = [{ id: 'lrclib', on: true }, { id: 'lyricsovh', on: true }];
+  }
+  return d.lyricProviders;
+}
+
+function renderLyricProviders() {
+  const box = $('lyricProviderList');
+  box.replaceChildren();
+  const list = lyricProviderPrefs();
+  list.forEach((p, i) => {
+    const meta = LYRIC_PROVIDERS[p.id];
+    if (!meta) return;
+    const row = el('div', 'lp-row' + (p.on ? '' : ' off'));
+    const n = el('div', 'n', meta.label);
+    n.appendChild(el('small', null, meta.hint));
+    row.appendChild(n);
+    const toggle = el('button', 'toggle' + (p.on ? ' on' : ''), p.on ? 'On' : 'Off');
+    toggle.onclick = () => { p.on = !p.on; store.save(); renderLyricProviders(); };
+    row.appendChild(toggle);
+    const order = el('div', 'order');
+    const move = (by, label, path) => {
+      const b = el('button');
+      b.setAttribute('aria-label', label);
+      b.title = label;
+      b.disabled = i + by < 0 || i + by >= list.length;
+      b.innerHTML = `<svg viewBox="0 0 24 24"><path d="${path}"/></svg>`;
+      b.onclick = () => {
+        [list[i], list[i + by]] = [list[i + by], list[i]];
+        store.save(); renderLyricProviders();
+      };
+      order.appendChild(b);
+    };
+    move(-1, 'Move up', 'M12 6l7 7-1.4 1.4L13 9.8V19h-2V9.8l-4.6 4.6L5 13z');
+    move(1, 'Move down', 'M12 19l-7-7 1.4-1.4L11 15.2V5h2v10.2l4.6-4.6L19 12z');
+    row.appendChild(order);
+    box.appendChild(row);
+  });
+}
+
+const INFO_TABS = ['Shortcuts', 'Lyrics', 'Widget'];
+
+function selectInfoTab(name) {
+  for (const t of INFO_TABS) {
+    const on = t === name;
+    $('infoTab' + t).setAttribute('aria-selected', String(on));
+    $('infoPane' + t).hidden = !on;
+  }
+}
+for (const t of INFO_TABS) $('infoTab' + t).onclick = () => selectInfoTab(t);
+
 function openInfo() {
   renderKeys();
+  renderLyricProviders();
   renderWidgetOpts();
+  selectInfoTab('Shortcuts');
   $('keysDlg').showModal();
 }
 

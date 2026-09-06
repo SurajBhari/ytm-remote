@@ -24,6 +24,13 @@
 @property --art-bg{syntax:'<color>';inherits:true;initial-value:#0f0f0f}
 :root{transition:--accent .7s ease,--art-bg .7s ease}
 @media(prefers-reduced-motion:reduce){:root{transition:none}}
+/* an ambient wash behind the widget, in the art's own colours -- opt-in via
+   ?bg=on, since most streamers want a plain transparent overlay with nothing
+   painted behind it */
+body.bg-on::before{
+  content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(var(--bg-angle,135deg),var(--art-bg),var(--accent) 140%);
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{
@@ -212,14 +219,20 @@ const $ = (id) => document.getElementById(id);
 const qs = new URLSearchParams(location.search);
 const THEME = ['card', 'minimal', 'poster', 'bar', 'vinyl', 'retro', 'terminal'].includes(qs.get('theme')) ? qs.get('theme') : 'card';
 const PAUSE_MODE = qs.get('pause') === 'hide' ? 'hide' : 'dim';
+const BG_ANIM = qs.get('bg') === 'on';
 document.body.dataset.theme = THEME;
+if (BG_ANIM) document.body.classList.add('bg-on');
 const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
-/* ---------------- connection: reuses the main app's saved player ----------------
-   Same localStorage key and shape as index.html, so this only lights up once
-   this browser has connected to a player at least once -- OBS's Browser Source
-   is its own Chromium profile, so that usually means opening this URL once and
-   filling the fallback form below, or opening it in a normal tab first. */
+/* ---------------- connection ----------------
+   The link the Info panel generates carries the player's address and token
+   in the query string, so a fresh OBS Browser Source -- which has no access
+   to this tab's localStorage -- works the moment the link is pasted in,
+   with nothing to fill in by hand. Opening the widget without those params
+   falls back to the main app's saved connection (same localStorage key and
+   shape as index.html), and failing that, the connect form below. */
+const qUrl = qs.get('url');
+const inlineConn = qUrl ? { url: qUrl, token: qs.get('token') || '' } : null;
 const KEY = 'ytmRemote.v1';
 const store = {
   data: { connections: [], activeId: null },
@@ -227,7 +240,7 @@ const store = {
   save() { try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch {} }
 };
 store.load();
-const active = () => store.data.connections.find(c => c.id === store.data.activeId) || null;
+const active = () => inlineConn || store.data.connections.find(c => c.id === store.data.activeId) || null;
 
 const api = {
   async call(method, path, body) {
@@ -556,6 +569,20 @@ requestAnimationFrame(frame);
 
 requestIdleCallback ? requestIdleCallback(bakeDissolve) : setTimeout(bakeDissolve, 200);
 connect();
+
+/* ---------------- animated background ----------------
+   The angle steps on a fixed 24fps interval rather than a CSS animation,
+   which would run at whatever rate the compositor felt like giving it --
+   the ask was 24, not merely "smooth". One full revolution every 24s. */
+if (BG_ANIM && !stillness.matches) {
+  const BG_FPS = 24, BG_LOOP_SECONDS = 24;
+  const degPerTick = 360 / BG_LOOP_SECONDS / BG_FPS;
+  let bgAngle = 135;
+  setInterval(() => {
+    bgAngle = (bgAngle + degPerTick) % 360;
+    document.documentElement.style.setProperty('--bg-angle', bgAngle + 'deg');
+  }, 1000 / BG_FPS);
+}
 </script>
 </body>
 </html>
