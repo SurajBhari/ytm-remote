@@ -94,18 +94,25 @@ body::before{
 body.bg-anim .bg-art-wrap{animation:bg-rotate 60s ease-in-out infinite;will-change:transform}
 @keyframes bg-rotate{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){body.bg-anim .bg-art-wrap{animation:none}}
+/* paused stops the rotation rather than merely dimming through it -- a still
+   frame reads as "stopped", a dim frame still turning reads as broken */
+body.bg-anim.dim .bg-art-wrap{animation-play-state:paused}
 .bg-art{
+  --bg-sat:1.4;--bg-bright:.55;
   position:absolute;top:-60%;left:-60%;right:-60%;bottom:-60%;
   background-size:cover;background-position:center;
-  filter:blur(70px) saturate(1.4) brightness(.55);
-  opacity:0;transition:opacity 900ms ease;
+  filter:blur(70px) saturate(var(--bg-sat)) brightness(var(--bg-bright));
+  opacity:0;transition:opacity 900ms ease,filter .5s cubic-bezier(.2,0,0,1);
 }
+/* the same lights-going-down treatment as the cover and the plain wash below,
+   just on the colour variables rather than a second filter declaration */
+body.dim .bg-art{--bg-sat:.9;--bg-bright:.32}
 /* the 'on' class just tracks which of the two layers holds the current image
    for crossfade purposes -- the whole wrapper only actually shows once the
    Display tab's animated background is switched on */
 body.bg-anim .bg-art.on{opacity:1}
 body.bg-anim::before{opacity:0}
-@media(prefers-reduced-motion:reduce){.bg-art{transition:opacity 300ms linear}}
+@media(prefers-reduced-motion:reduce){.bg-art{transition:opacity 300ms linear,filter .2s linear}}
 /* paused is the lights going down. The art-derived wash pulls back towards the
    base colour and the covers lose their brightness, so a glance at the page
    says the music has stopped without reading the play icon. The cover is dimmed
