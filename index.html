@@ -544,6 +544,16 @@ img{display:block}
 .nav button svg{width:22px;height:22px;fill:currentColor}
 .nav button[aria-selected="true"]{color:var(--text)}
 
+/* ---------------- idle chrome ----------------
+   Everything but the album art tucks away once a track has been playing
+   untouched for a while -- there is nothing left to read or reach for.
+   Space is left exactly as it was; only the layer over it goes transparent,
+   so nothing reflows when it comes back. */
+.top,.side,.bar,.nav,.now .actions{transition:opacity .6s ease}
+body.idle-hide .top,body.idle-hide .side,body.idle-hide .bar,
+body.idle-hide .nav,body.idle-hide .now .actions{opacity:0;pointer-events:none}
+@media(prefers-reduced-motion:reduce){.top,.side,.bar,.nav,.now .actions{transition:none}}
+
 /* ============ tablet and below ============ */
 @media(max-width:1000px){
   .content{gap:16px}
@@ -1717,6 +1727,7 @@ function setPaused(next) {
   if (next === state.paused) return;
   bankTime();
   state.paused = next;
+  wakeIdle();
 }
 
 /* A seek is applied here first and posted second, so for a moment the player
@@ -3774,6 +3785,32 @@ async function syncWakeLock() {
   } catch { wakeLock = null; }   // denied or not permitted here; not worth surfacing
 }
 
+/* ---------------- idle chrome ----------------
+   Everything but the album art tucks away once a track has been playing
+   untouched for a while. Any pointer or keyboard activity -- and a dialog
+   closing, which Escape does not otherwise announce -- brings it straight
+   back and gives it a fresh five seconds. */
+const IDLE_DELAY = 5000;
+let idleTimer = null;
+const anyDialogOpen = () => !!document.querySelector('dialog[open]');
+
+function armIdle() {
+  clearTimeout(idleTimer);
+  idleTimer = null;
+  if (state.paused || !state.song || document.hidden || anyDialogOpen()) return;
+  idleTimer = setTimeout(() => document.body.classList.add('idle-hide'), IDLE_DELAY);
+}
+
+function wakeIdle() {
+  document.body.classList.remove('idle-hide');
+  armIdle();
+}
+
+for (const ev of ['mousemove', 'mousedown', 'keydown', 'wheel', 'touchstart']) {
+  addEventListener(ev, wakeIdle, { passive: true });
+}
+document.addEventListener('close', wakeIdle, true);   // dialogs don't bubble it
+
 /* ---------------- boot ---------------- */
 let songTimer, auxTimer, queueTimer;
 /* the last time the one second timer actually ran, and the last poll it sent */
@@ -3842,6 +3879,7 @@ requestAnimationFrame(frame);
 
 document.addEventListener('visibilitychange', () => {
   syncWakeLock();
+  wakeIdle();
   if (document.hidden || !active()) return;
   lastTick = performance.now();
   /* readyState is the only honest answer here; a socket the system closed while
