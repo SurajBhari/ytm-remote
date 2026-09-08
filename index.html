@@ -171,6 +171,13 @@ img{display:block}
 /* ============ now playing ============ */
 /* nothing here scrolls; the artwork gives up height instead */
 .now{flex:1 1 44%;min-width:0;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+/* idle, with lyrics up beside it, the cover takes a bigger share of the row --
+   there is nothing else left to look at. .art-btn's own width transition
+   below rides along with this one so the cover reads as growing into the
+   room rather than the row just resizing under it. */
+.now,.side{transition:flex-basis .6s cubic-bezier(.22,.61,.36,1)}
+body.idle-hide:has(#paneLyrics:not([hidden])) .now{flex-basis:60%}
+body.idle-hide:has(#paneLyrics:not([hidden])) .side{flex-basis:40%}
 /* the wrapper takes the leftover height, and --art-size is measured from it so
    the cover stays square while shrinking; max-height alone would squash it */
 .art-wrap{flex:1 1 auto;min-height:0;width:100%;display:flex;justify-content:center;align-items:center}
@@ -189,6 +196,10 @@ img{display:block}
      single move event on a desktop */
   user-select:none;-webkit-user-select:none;-webkit-user-drag:none;
   width:var(--art-size,100%);aspect-ratio:1;
+  /* grows with --art-size when idle-hide gives it more room (see .now/.side
+     below) -- the size change reads as the cover settling into the space
+     rather than snapping to it */
+  transition:width .6s cubic-bezier(.22,.61,.36,1);
   border-radius:var(--r-md);
   /* three transparent layers read as depth; one hard shadow reads as a border */
   box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.4),0 16px 48px rgba(0,0,0,.3);
@@ -3210,7 +3221,11 @@ const artWrap = document.querySelector('.art-wrap');
 function fitArt() {
   const w = artWrap.clientWidth, h = artWrap.clientHeight;
   if (!w || !h) return;
-  const cap = stacked.matches ? w : Math.min(w, 360);
+  /* the .now/.side split widens in its own transition when idle-hide gives the
+     cover the room (see the stylesheet); the resize that follows is what
+     drives this, so the cap just needs to allow the bigger side of it */
+  const grown = document.body.classList.contains('idle-hide') && !$('paneLyrics').hidden;
+  const cap = stacked.matches ? w : Math.min(w, grown ? 520 : 360);
   document.documentElement.style.setProperty('--art-size', Math.max(72, Math.min(w, h, cap)) + 'px');
 }
 new ResizeObserver(fitArt).observe(artWrap);
