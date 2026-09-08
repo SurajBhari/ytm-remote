@@ -324,7 +324,15 @@ img{display:block}
    made lines appear and vanish with nothing in between */
 .lyr-pane.windowed{overflow:hidden;-webkit-mask-image:none;mask-image:none}
 .lyr-pane.windowed #lyricsBody{height:100%;display:flex;flex-direction:column}
-.lyr-viewport{flex:1;min-height:0;position:relative;overflow:hidden}
+/* the clip has to stay -- the slid list would otherwise run into the tune row
+   above it -- but the edge it clips to is masked into darkness instead of left
+   as a hard line, so a line dissolves into the gap above the screen rather than
+   looking like it hit the wall of a small window */
+.lyr-viewport{
+  flex:1;min-height:0;position:relative;overflow:hidden;
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 20%,#000 80%,transparent);
+  mask-image:linear-gradient(to bottom,transparent,#000 20%,#000 80%,transparent);
+}
 .lyrics.synced{
   position:absolute;left:0;right:0;top:50%;
   transition:transform .5s cubic-bezier(.22,.61,.36,1);
