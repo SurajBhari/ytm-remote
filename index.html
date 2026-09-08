@@ -567,12 +567,10 @@ img{display:block}
    Space is left exactly as it was; only the layer over it goes transparent,
    so nothing reflows when it comes back.
 
-   The title/artist under the art runs on its own two-stage timeline instead
-   of joining the group fade: it is invisible day to day (the bar already
-   shows the same text), rises into place the moment the chrome starts
-   fading out -- reading as the bar's own title relocating rather than a
-   second copy appearing -- and only once idle-hide has held for a while
-   longer does it fade out in turn, leaving just the cover. */
+   The title/artist under the art is invisible day to day (the bar already
+   shows the same text) and rises into place the moment the chrome fades --
+   reading as the bar's own title relocating rather than a second copy
+   appearing -- then stays there for as long as idle-hide holds. */
 .top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune{transition:opacity .6s ease}
 body.idle-hide .top,body.idle-hide .side>.tabs,
 body.idle-hide #paneQueue,body.idle-hide #paneSearch,
@@ -580,7 +578,6 @@ body.idle-hide .bar,body.idle-hide .nav,body.idle-hide .now .actions,
 body.idle-hide .lyr-tune{opacity:0;pointer-events:none}
 .now-meta{opacity:0;transform:translateY(10px);transition:opacity .6s ease,transform .6s ease;pointer-events:none}
 body.idle-hide .now-meta{opacity:1;transform:translateY(0)}
-body.idle-hide-full .now-meta{opacity:0;transform:translateY(-6px)}
 @media(prefers-reduced-motion:reduce){
   .top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune,.now-meta{transition:none}
 }
@@ -991,7 +988,7 @@ body.offline .art-btn::after{content:none}
       <div class="label" style="margin-top:16px">Hide controls when idle</div>
       <div class="hint" style="margin-bottom:8px">
         While a track plays untouched, everything fades away -- title and
-        artist rise under the cover for a moment first, then that goes too.
+        artist rise under the cover so there's still something to read.
         Moving the mouse, tapping, or pausing brings it straight back.
       </div>
       <div class="widget-opts" id="displayIdle"></div>
@@ -3844,32 +3841,24 @@ async function syncWakeLock() {
 
 /* ---------------- idle chrome ----------------
    Everything but the album art tucks away once a track has been playing
-   untouched for a while. Any pointer or keyboard activity -- and a dialog
-   closing, which Escape does not otherwise announce -- brings it straight
-   back and gives it a fresh five seconds.
-
-   The title/artist caption gets a second stage: it rises into place the
-   moment the rest fades (see .now-meta in the stylesheet), then holds long
-   enough to actually read before it fades too, leaving nothing but the
-   cover. */
+   untouched for a while -- the title/artist caption included, once it has
+   risen into place (see .now-meta in the stylesheet). Any pointer or
+   keyboard activity -- and a dialog closing, which Escape does not
+   otherwise announce -- brings it straight back and gives it a fresh five
+   seconds. */
 const IDLE_DELAY = 5000;
-const IDLE_CAPTION_HOLD = 2500;
-let idleTimer = null, idleFullTimer = null;
+let idleTimer = null;
 const anyDialogOpen = () => !!document.querySelector('dialog[open]');
 
 function armIdle() {
   clearTimeout(idleTimer);
-  clearTimeout(idleFullTimer);
-  idleTimer = idleFullTimer = null;
+  idleTimer = null;
   if (!store.data.idleHide || state.paused || !state.song || document.hidden || anyDialogOpen()) return;
-  idleTimer = setTimeout(() => {
-    document.body.classList.add('idle-hide');
-    idleFullTimer = setTimeout(() => document.body.classList.add('idle-hide-full'), IDLE_CAPTION_HOLD);
-  }, IDLE_DELAY);
+  idleTimer = setTimeout(() => document.body.classList.add('idle-hide'), IDLE_DELAY);
 }
 
 function wakeIdle() {
-  document.body.classList.remove('idle-hide', 'idle-hide-full');
+  document.body.classList.remove('idle-hide');
   armIdle();
 }
 
