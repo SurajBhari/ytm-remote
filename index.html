@@ -550,19 +550,32 @@ img{display:block}
 .nav button[aria-selected="true"]{color:var(--text)}
 
 /* ---------------- idle chrome ----------------
-   Everything but the album art (and its title/artist caption) tucks away
-   once a track has been playing untouched for a while -- there is nothing
-   left to read or reach for. The lyrics pane is the one exception: its tab
-   button fades with the rest of the strip, but the lyrics themselves are
-   worth reading without having to touch anything, so #paneLyrics is left
-   out of the fade list on purpose. Space is left exactly as it was; only
-   the layer over it goes transparent, so nothing reflows when it comes
-   back. */
-.top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions{transition:opacity .6s ease}
+   Everything but the album art tucks away once a track has been playing
+   untouched for a while -- there is nothing left to read or reach for. The
+   lyrics pane is the one exception: its tab button and the sync-offset row
+   above the lines fade with the rest of the chrome, but the lines
+   themselves are worth reading without touching anything, so #paneLyrics
+   stays out of the fade list and only its .lyr-tune row is named directly.
+   Space is left exactly as it was; only the layer over it goes transparent,
+   so nothing reflows when it comes back.
+
+   The title/artist under the art runs on its own two-stage timeline instead
+   of joining the group fade: it is invisible day to day (the bar already
+   shows the same text), rises into place the moment the chrome starts
+   fading out -- reading as the bar's own title relocating rather than a
+   second copy appearing -- and only once idle-hide has held for a while
+   longer does it fade out in turn, leaving just the cover. */
+.top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune{transition:opacity .6s ease}
 body.idle-hide .top,body.idle-hide .side>.tabs,
 body.idle-hide #paneQueue,body.idle-hide #paneSearch,
-body.idle-hide .bar,body.idle-hide .nav,body.idle-hide .now .actions{opacity:0;pointer-events:none}
-@media(prefers-reduced-motion:reduce){.top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions{transition:none}}
+body.idle-hide .bar,body.idle-hide .nav,body.idle-hide .now .actions,
+body.idle-hide .lyr-tune{opacity:0;pointer-events:none}
+.now-meta{opacity:0;transform:translateY(10px);transition:opacity .6s ease,transform .6s ease;pointer-events:none}
+body.idle-hide .now-meta{opacity:1;transform:translateY(0)}
+body.idle-hide-full .now-meta{opacity:0;transform:translateY(-6px)}
+@media(prefers-reduced-motion:reduce){
+  .top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune,.now-meta{transition:none}
+}
 
 /* ============ tablet and below ============ */
 @media(max-width:1000px){
@@ -969,9 +982,9 @@ body.offline .art-btn::after{content:none}
       <div class="widget-opts" id="displayBg"></div>
       <div class="label" style="margin-top:16px">Hide controls when idle</div>
       <div class="hint" style="margin-bottom:8px">
-        While a track plays untouched, everything but the cover and its
-        caption fades away. Moving the mouse, tapping, or pausing brings it
-        straight back.
+        While a track plays untouched, everything fades away -- title and
+        artist rise under the cover for a moment first, then that goes too.
+        Moving the mouse, tapping, or pausing brings it straight back.
       </div>
       <div class="widget-opts" id="displayIdle"></div>
       <div class="label" style="margin-top:16px">Demo mode</div>
@@ -3825,20 +3838,30 @@ async function syncWakeLock() {
    Everything but the album art tucks away once a track has been playing
    untouched for a while. Any pointer or keyboard activity -- and a dialog
    closing, which Escape does not otherwise announce -- brings it straight
-   back and gives it a fresh five seconds. */
+   back and gives it a fresh five seconds.
+
+   The title/artist caption gets a second stage: it rises into place the
+   moment the rest fades (see .now-meta in the stylesheet), then holds long
+   enough to actually read before it fades too, leaving nothing but the
+   cover. */
 const IDLE_DELAY = 5000;
-let idleTimer = null;
+const IDLE_CAPTION_HOLD = 2500;
+let idleTimer = null, idleFullTimer = null;
 const anyDialogOpen = () => !!document.querySelector('dialog[open]');
 
 function armIdle() {
   clearTimeout(idleTimer);
-  idleTimer = null;
+  clearTimeout(idleFullTimer);
+  idleTimer = idleFullTimer = null;
   if (!store.data.idleHide || state.paused || !state.song || document.hidden || anyDialogOpen()) return;
-  idleTimer = setTimeout(() => document.body.classList.add('idle-hide'), IDLE_DELAY);
+  idleTimer = setTimeout(() => {
+    document.body.classList.add('idle-hide');
+    idleFullTimer = setTimeout(() => document.body.classList.add('idle-hide-full'), IDLE_CAPTION_HOLD);
+  }, IDLE_DELAY);
 }
 
 function wakeIdle() {
-  document.body.classList.remove('idle-hide');
+  document.body.classList.remove('idle-hide', 'idle-hide-full');
   armIdle();
 }
 
