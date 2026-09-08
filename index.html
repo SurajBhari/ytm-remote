@@ -174,6 +174,11 @@ img{display:block}
 /* the wrapper takes the leftover height, and --art-size is measured from it so
    the cover stays square while shrinking; max-height alone would squash it */
 .art-wrap{flex:1 1 auto;min-height:0;width:100%;display:flex;justify-content:center;align-items:center}
+/* width capped to the art itself so a long title wraps under the cover
+   instead of stretching out past its edges */
+.now-meta{flex:none;max-width:var(--art-size,100%);margin:14px auto 0;text-align:center;overflow:hidden}
+.now-meta .t{font-size:16px;font-weight:600;color:var(--text);text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.now-meta .a{font-size:13px;color:var(--text-3);margin-top:2px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
 .actions{flex:none}
 /* the cover is the play control, so the sized box is the button and the image
    fills it; --art-size is still measured from the wrapper around them */
@@ -545,14 +550,19 @@ img{display:block}
 .nav button[aria-selected="true"]{color:var(--text)}
 
 /* ---------------- idle chrome ----------------
-   Everything but the album art tucks away once a track has been playing
-   untouched for a while -- there is nothing left to read or reach for.
-   Space is left exactly as it was; only the layer over it goes transparent,
-   so nothing reflows when it comes back. */
-.top,.side,.bar,.nav,.now .actions{transition:opacity .6s ease}
-body.idle-hide .top,body.idle-hide .side,body.idle-hide .bar,
-body.idle-hide .nav,body.idle-hide .now .actions{opacity:0;pointer-events:none}
-@media(prefers-reduced-motion:reduce){.top,.side,.bar,.nav,.now .actions{transition:none}}
+   Everything but the album art (and its title/artist caption) tucks away
+   once a track has been playing untouched for a while -- there is nothing
+   left to read or reach for. The lyrics pane is the one exception: its tab
+   button fades with the rest of the strip, but the lyrics themselves are
+   worth reading without having to touch anything, so #paneLyrics is left
+   out of the fade list on purpose. Space is left exactly as it was; only
+   the layer over it goes transparent, so nothing reflows when it comes
+   back. */
+.top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions{transition:opacity .6s ease}
+body.idle-hide .top,body.idle-hide .side>.tabs,
+body.idle-hide #paneQueue,body.idle-hide #paneSearch,
+body.idle-hide .bar,body.idle-hide .nav,body.idle-hide .now .actions{opacity:0;pointer-events:none}
+@media(prefers-reduced-motion:reduce){.top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions{transition:none}}
 
 /* ============ tablet and below ============ */
 @media(max-width:1000px){
@@ -790,6 +800,12 @@ body.offline .art-btn::after{content:none}
           </span>
         </button>
       </div>
+      <!-- the caption stays put through idle-hide -- it's the one thing worth
+           knowing at a glance once the rest of the chrome has faded -->
+      <div class="now-meta" id="nowMeta">
+        <div class="t" id="nowTitle"></div>
+        <div class="a" id="nowArtist"></div>
+      </div>
       <!-- rating and fullscreen move in here on a phone, as in the app;
            lyrics has its own tab in the bottom bar. the track's name and
            credits are the player bar's job at every size -->
@@ -951,6 +967,13 @@ body.offline .art-btn::after{content:none}
         it lets the colour drift slowly rather than sitting still.
       </div>
       <div class="widget-opts" id="displayBg"></div>
+      <div class="label" style="margin-top:16px">Hide controls when idle</div>
+      <div class="hint" style="margin-bottom:8px">
+        While a track plays untouched, everything but the cover and its
+        caption fades away. Moving the mouse, tapping, or pausing brings it
+        straight back.
+      </div>
+      <div class="widget-opts" id="displayIdle"></div>
       <div class="label" style="margin-top:16px">Demo mode</div>
       <div class="hint" style="margin-bottom:8px">
         Plays a fake track locally so the interface can be tried without the
@@ -1006,7 +1029,7 @@ body.offline .art-btn::after{content:none}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, demoMode: false },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, demoMode: false, idleHide: true },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
@@ -1667,6 +1690,7 @@ function renderSong() {
     setArt(null);
     $('barTitle').textContent = connected ? 'Nothing playing' : 'Not connected';
     sub.textContent = connected ? 'Start a song in YouTube Music' : 'Add your player under Connections';
+    $('nowMeta').hidden = true;
     applyTheme(null);
     animatedFor = null;
     return;
@@ -1674,6 +1698,9 @@ function renderSong() {
   const year = s.uploadDate && !isNaN(new Date(s.uploadDate))
     ? String(new Date(s.uploadDate).getFullYear()) : '';
   $('barTitle').textContent = s.title || 'Untitled';
+  $('nowMeta').hidden = false;
+  $('nowTitle').textContent = s.title || 'Untitled';
+  $('nowArtist').textContent = s.artist || '';
   remember(s);
 
   /* artist • album • year, the way the reference bar reads. The first two are
@@ -3691,6 +3718,7 @@ for (const t of INFO_TABS) $('infoTab' + t).onclick = () => selectInfoTab(t);
    in the stylesheet takes care of turning it off, so there is nothing left
    for this function to do beyond toggling the class. */
 const DISPLAY_BG = [['off', 'Static background'], ['on', 'Animated background']];
+const DISPLAY_IDLE = [['off', 'Off'], ['on', 'On']];
 const DISPLAY_DEMO = [['off', 'Off'], ['on', 'On']];
 
 function applyBgAnim() {
@@ -3725,6 +3753,14 @@ function renderDisplayOpts() {
     const b = el('button', on ? 'on' : '', label);
     b.onclick = () => { store.data.bgAnim = val === 'on'; store.save(); applyBgAnim(); renderDisplayOpts(); };
     box.appendChild(b);
+  }
+  const idleBox = $('displayIdle');
+  idleBox.replaceChildren();
+  for (const [val, label] of DISPLAY_IDLE) {
+    const on = (val === 'on') === !!store.data.idleHide;
+    const b = el('button', on ? 'on' : '', label);
+    b.onclick = () => { store.data.idleHide = val === 'on'; store.save(); renderDisplayOpts(); wakeIdle(); };
+    idleBox.appendChild(b);
   }
   const demoBox = $('displayDemo');
   demoBox.replaceChildren();
@@ -3797,7 +3833,7 @@ const anyDialogOpen = () => !!document.querySelector('dialog[open]');
 function armIdle() {
   clearTimeout(idleTimer);
   idleTimer = null;
-  if (state.paused || !state.song || document.hidden || anyDialogOpen()) return;
+  if (!store.data.idleHide || state.paused || !state.song || document.hidden || anyDialogOpen()) return;
   idleTimer = setTimeout(() => document.body.classList.add('idle-hide'), IDLE_DELAY);
 }
 
