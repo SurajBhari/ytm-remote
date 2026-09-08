@@ -246,15 +246,23 @@ const api = {
   async call(method, path, body) {
     const c = active();
     if (!c) throw new Error('No player selected');
-    const res = await fetch(c.url.replace(/\/+$/, '') + path, {
-      method,
-      headers: Object.assign(
-        c.token ? { Authorization: 'Bearer ' + c.token } : {},
-        body !== undefined ? { 'Content-Type': 'application/json' } : {}
-      ),
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      mode: 'cors', cache: 'no-store'
-    });
+    /* a connection that has gone dead without a TCP reset just hangs forever
+       with nothing to catch, so the widget never notices it should fall back
+       or reconnect. A cap gives it something to fail on. */
+    const ac = new AbortController();
+    const to = setTimeout(() => ac.abort(), 8000);
+    let res;
+    try {
+      res = await fetch(c.url.replace(/\/+$/, '') + path, {
+        method,
+        headers: Object.assign(
+          c.token ? { Authorization: 'Bearer ' + c.token } : {},
+          body !== undefined ? { 'Content-Type': 'application/json' } : {}
+        ),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        mode: 'cors', cache: 'no-store', signal: ac.signal
+      });
+    } finally { clearTimeout(to); }
     if (!res.ok) throw new Error('Player returned ' + res.status);
     if (res.status === 204) return null;
     const text = await res.text();
@@ -566,6 +574,30 @@ function connect() {
 
 function frame() { if (state.duration && !state.paused) renderProgress(); requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
+
+/* OBS parks a browser source's timers the same way a backgrounded browser tab
+   does whenever its scene is off screen, so a socket that died while hidden
+   was only ever found again by the watchdog on the next tick -- which was
+   itself being throttled. These fire the moment the source is back, the same
+   recovery the main app already had. */
+function revive() {
+  if (!active()) return;
+  wsRetry = 0;
+  closeSocket();
+  openSocket();
+  lastPoll = 0;
+  pollSong();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !active()) return;
+  lastTick = performance.now();
+  if (!ws || ws.readyState !== WebSocket.OPEN) revive();
+  else { lastPoll = 0; pollSong(); }
+});
+document.addEventListener('resume', revive);
+addEventListener('pageshow', (e) => { if (e.persisted) revive(); });
+addEventListener('online', revive);
 
 requestIdleCallback ? requestIdleCallback(bakeDissolve) : setTimeout(bakeDissolve, 200);
 connect();

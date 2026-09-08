@@ -909,6 +909,10 @@ body.offline .art-btn::after{content:none}
       before granting access, approve the request in the desktop app. Over HTTPS, Chrome and Edge
       allow calls to <code>localhost</code>; Safari blocks them, so open this page over <code>http://</code> there.
     </div>
+    <div class="hint">
+      Nothing to connect to yet? <button class="txtbtn" id="bTryDemo" style="padding:0">Try it in demo mode</button>
+      instead -- a fake track, no desktop app required. Turn it off again from Info → Display.
+    </div>
   </div>
 </dialog>
 
@@ -937,6 +941,13 @@ body.offline .art-btn::after{content:none}
         it lets the colour drift slowly rather than sitting still.
       </div>
       <div class="widget-opts" id="displayBg"></div>
+      <div class="label" style="margin-top:16px">Demo mode</div>
+      <div class="hint" style="margin-bottom:8px">
+        Plays a fake track locally so the interface can be tried without the
+        desktop app running. Search stays empty, and nothing here is a real
+        connection.
+      </div>
+      <div class="widget-opts" id="displayDemo"></div>
     </div>
 
     <div id="infoPaneLyrics" role="tabpanel" hidden>
@@ -985,7 +996,7 @@ body.offline .art-btn::after{content:none}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, demoMode: false },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
@@ -995,22 +1006,149 @@ const store = {
   save() { try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch {} }
 };
 store.load();
-const active = () => store.data.connections.find(c => c.id === store.data.activeId) || null;
+/* ---------------- demo mode ----------------
+   A fake player, for trying the interface without the desktop app running.
+   api.call() is short-circuited into this before it ever touches the network,
+   so every screen that talks through it -- transport, queue, volume, likes --
+   works unmodified. Search stays real-shaped but empty rather than faked: the
+   internal renderer JSON it depends on is not worth reproducing here. */
+const DEMO_CONNECTION = { id: 'demo', name: 'Demo', url: 'demo:', token: '' };
+const demoArt = (h) => 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="hsl(${h} 55% 32%)"/><circle cx="210" cy="90" r="150" fill="hsl(${(h + 40) % 360} 65% 55%)" opacity=".35"/></svg>`
+);
+const DEMO_TRACKS = [
+  { videoId: 'demo-1', title: 'Analog Skyline', artist: 'The Night Ferry', album: 'Departures', duration: 214, hue: 200 },
+  { videoId: 'demo-2', title: 'Paper Lanterns', artist: 'Kilo & Vale', album: 'Paper Lanterns', duration: 187, hue: 320 },
+  { videoId: 'demo-3', title: 'Low Tide', artist: 'Marrow', album: 'Low Tide EP', duration: 251, hue: 40 },
+  { videoId: 'demo-4', title: 'Static Bloom', artist: 'Halide', album: 'Static Bloom', duration: 198, hue: 150 }
+].map(t => Object.assign({ imageSrc: demoArt(t.hue) }, t));
+const demoState = {
+  idx: 0, paused: false, elapsedAt: 0, resumedAt: performance.now(),
+  like: 'INDIFFERENT', shuffle: false, repeat: 'NONE', volume: 70, muted: false,
+  queue: DEMO_TRACKS.map(t => Object.assign({}, t))
+};
+function demoElapsed() {
+  const t = demoState.queue[demoState.idx];
+  let e = demoState.elapsedAt;
+  if (!demoState.paused) e += (performance.now() - demoState.resumedAt) / 1000;
+  return Math.min(e, t.duration);
+}
+function demoBank() { demoState.elapsedAt = demoElapsed(); demoState.resumedAt = performance.now(); }
+function demoSetPaused(p) { if (p === demoState.paused) return; demoBank(); demoState.paused = p; }
+function demoSeek(secs) {
+  const t = demoState.queue[demoState.idx];
+  demoState.elapsedAt = Math.max(0, Math.min(secs, t.duration));
+  demoState.resumedAt = performance.now();
+}
+function demoGoto(idx) {
+  demoState.idx = ((idx % demoState.queue.length) + demoState.queue.length) % demoState.queue.length;
+  demoState.elapsedAt = 0; demoState.resumedAt = performance.now(); demoState.paused = false;
+}
+function demoSong() {
+  const t = demoState.queue[demoState.idx];
+  return {
+    videoId: t.videoId, title: t.title, artist: t.artist, album: t.album,
+    imageSrc: t.imageSrc, songDuration: t.duration,
+    elapsedSeconds: Math.floor(demoElapsed()), isPaused: demoState.paused
+  };
+}
+function demoQueueItem(t, i) {
+  return { playlistPanelVideoRenderer: {
+    title: { runs: [{ text: t.title }] },
+    shortBylineText: { runs: [{ text: t.artist }] },
+    lengthText: { runs: [{ text: mmss(t.duration) }] },
+    videoId: t.videoId, selected: i === demoState.idx,
+    thumbnail: { thumbnails: [{ url: t.imageSrc }] }
+  } };
+}
+async function demoApi(method, path, body) {
+  await new Promise(r => setTimeout(r, 60));
+  const qMatch = /^\/api\/v1\/queue\/(\d+)$/.exec(path);
+  if (path === '/api/v1/song') return demoSong();
+  if (path === '/api/v1/like-state') return { state: demoState.like };
+  if (path === '/api/v1/like') { demoState.like = demoState.like === 'LIKE' ? 'INDIFFERENT' : 'LIKE'; return null; }
+  if (path === '/api/v1/dislike') { demoState.like = demoState.like === 'DISLIKE' ? 'INDIFFERENT' : 'DISLIKE'; return null; }
+  if (path === '/api/v1/volume') {
+    if (method === 'GET') return { state: Math.round(100 * Math.pow(demoState.volume / 100, VOL_CURVE)), isMuted: demoState.muted };
+    demoState.volume = Math.max(0, Math.min(100, (body && body.volume) || 0));
+    return null;
+  }
+  if (path === '/api/v1/toggle-mute') { demoState.muted = !demoState.muted; return null; }
+  if (path === '/api/v1/shuffle') { demoState.queue.sort(() => Math.random() - 0.5); return null; }
+  if (path === '/api/v1/repeat-mode') return { mode: demoState.repeat };
+  if (path === '/api/v1/switch-repeat') { demoState.repeat = REPEAT_CYCLE[demoState.repeat] || 'ALL'; return null; }
+  if (path === '/api/v1/toggle-play') { demoSetPaused(!demoState.paused); return null; }
+  if (path === '/api/v1/play') { demoSetPaused(false); return null; }
+  if (path === '/api/v1/pause') { demoSetPaused(true); return null; }
+  if (path === '/api/v1/next') { demoGoto(demoState.idx + 1); return null; }
+  if (path === '/api/v1/previous') { demoGoto(demoState.idx - 1); return null; }
+  if (path === '/api/v1/go-back') { demoSeek(demoElapsed() - ((body && body.seconds) || 10)); return null; }
+  if (path === '/api/v1/go-forward') { demoSeek(demoElapsed() + ((body && body.seconds) || 10)); return null; }
+  if (path === '/api/v1/seek-to') { demoSeek((body && body.seconds) || 0); return null; }
+  if (path === '/api/v1/queue/next') {
+    const t = demoState.queue[(demoState.idx + 1) % demoState.queue.length];
+    return { thumbnail: { thumbnails: [{ url: t.imageSrc }] } };
+  }
+  if (path === '/api/v1/queue' && method === 'GET') return { items: demoState.queue.map(demoQueueItem) };
+  if (path === '/api/v1/queue' && method === 'POST') {
+    demoState.queue.splice(demoState.idx + 1, 0, {
+      videoId: 'demo-custom-' + Date.now().toString(36), title: 'Custom track',
+      artist: (body && body.videoId) || '', album: '', duration: 200, imageSrc: demoArt(0)
+    });
+    return null;
+  }
+  if (path === '/api/v1/queue' && method === 'DELETE') {
+    demoState.queue = DEMO_TRACKS.map(t => Object.assign({}, t)); demoState.idx = 0;
+    return null;
+  }
+  if (path === '/api/v1/queue' && method === 'PATCH') { demoGoto((body && body.index) || 0); return null; }
+  if (qMatch && method === 'PATCH') {
+    const from = +qMatch[1], to = body && body.toIndex;
+    if (typeof to === 'number' && demoState.queue[from]) {
+      const [item] = demoState.queue.splice(from, 1);
+      demoState.queue.splice(to, 0, item);
+      if (demoState.idx === from) demoState.idx = to;
+    }
+    return null;
+  }
+  if (qMatch && method === 'DELETE') {
+    const i = +qMatch[1];
+    if (demoState.queue.length > 1) {
+      demoState.queue.splice(i, 1);
+      if (demoState.idx >= demoState.queue.length) demoState.idx = demoState.queue.length - 1;
+    }
+    return null;
+  }
+  if (path === '/api/v1/search') return {};
+  return null;
+}
+const active = () => store.data.demoMode ? DEMO_CONNECTION : (store.data.connections.find(c => c.id === store.data.activeId) || null);
 
 /* ---------------- api ---------------- */
 const api = {
   async call(method, path, body) {
     const c = active();
     if (!c) throw new Error('No player selected');
-    const res = await fetch(c.url.replace(/\/+$/, '') + path, {
-      method,
-      headers: Object.assign(
-        c.token ? { Authorization: 'Bearer ' + c.token } : {},
-        body !== undefined ? { 'Content-Type': 'application/json' } : {}
-      ),
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      mode: 'cors', cache: 'no-store'
-    });
+    if (store.data.demoMode) return demoApi(method, path, body);
+    /* a request against a connection that has gone dead without ever sending a
+       TCP reset -- the machine slept, the router dropped the mapping -- just
+       sits there forever with no error to catch, so nothing downstream ever
+       learns the player is unreachable. A cap gives the loop something to fail
+       on and retry. */
+    const ac = new AbortController();
+    const to = setTimeout(() => ac.abort(), 8000);
+    let res;
+    try {
+      res = await fetch(c.url.replace(/\/+$/, '') + path, {
+        method,
+        headers: Object.assign(
+          c.token ? { Authorization: 'Bearer ' + c.token } : {},
+          body !== undefined ? { 'Content-Type': 'application/json' } : {}
+        ),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        mode: 'cors', cache: 'no-store', signal: ac.signal
+      });
+    } finally { clearTimeout(to); }
     if (res.status === 401 || res.status === 403) { const e = new Error('Token rejected'); e.auth = true; throw e; }
     if (!res.ok) throw new Error('Player returned ' + res.status);
     if (res.status === 204) return null;
@@ -1679,7 +1817,7 @@ async function pollSong() {
   if (!active()) return;
   try {
     const s = await api.get('/api/v1/song');
-    if (!connected) { connected = true; lamp('on', 'Connected'); }
+    if (!connected) { connected = true; lamp('on', store.data.demoMode ? 'Demo mode' : 'Connected'); }
     if (!s) {
       state.song = null; state.duration = 0; state.elapsed = 0; state.paused = true;
       lastVideoId = null;
@@ -1749,6 +1887,7 @@ function openSocket() {
   closeSocket();
   const c = active();
   if (!c) return;
+  if (store.data.demoMode) return;   // demoApi is polled directly; there is no socket to open
   let u;
   try { u = new URL(c.url); } catch { return; }
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -3215,6 +3354,8 @@ function renderConns() {
   box.replaceChildren(frag);
 }
 
+$('bTryDemo').onclick = () => { setDemoMode(true); dlg.close(); };
+
 $('bAddConn').onclick = async () => {
   let url = $('newUrl').value.trim();
   if (!url) return toast('Enter the player address', true);
@@ -3539,6 +3680,7 @@ for (const t of INFO_TABS) $('infoTab' + t).onclick = () => selectInfoTab(t);
    in the stylesheet takes care of turning it off, so there is nothing left
    for this function to do beyond toggling the class. */
 const DISPLAY_BG = [['off', 'Static background'], ['on', 'Animated background']];
+const DISPLAY_DEMO = [['off', 'Off'], ['on', 'On']];
 
 function applyBgAnim() {
   document.body.classList.toggle('bg-anim', !!store.data.bgAnim);
@@ -3573,6 +3715,26 @@ function renderDisplayOpts() {
     b.onclick = () => { store.data.bgAnim = val === 'on'; store.save(); applyBgAnim(); renderDisplayOpts(); };
     box.appendChild(b);
   }
+  const demoBox = $('displayDemo');
+  demoBox.replaceChildren();
+  for (const [val, label] of DISPLAY_DEMO) {
+    const on = (val === 'on') === !!store.data.demoMode;
+    const b = el('button', on ? 'on' : '', label);
+    b.onclick = () => setDemoMode(val === 'on');
+    demoBox.appendChild(b);
+  }
+}
+
+/* flips between the fake player above and whatever real connection is saved,
+   tearing down and rebuilding the polling/socket loop either way -- the same
+   path switching connections already goes through */
+function setDemoMode(on) {
+  if (on === !!store.data.demoMode) return;
+  store.data.demoMode = on;
+  store.save();
+  renderDisplayOpts();
+  renderConns();
+  connect();
 }
 
 function openInfo() {
@@ -3718,7 +3880,7 @@ if (window.requestIdleCallback) requestIdleCallback(bakeDissolve); else setTimeo
 
 renderSong(); renderProgress(); renderTransport(); renderFullscreen(); renderConnection(); renderHistory();
 applyBgAnim();
-if (!store.data.connections.length) { renderConns(); dlg.showModal(); }
+if (!store.data.demoMode && !store.data.connections.length) { renderConns(); dlg.showModal(); }
 else connect();
 </script>
 </body>
