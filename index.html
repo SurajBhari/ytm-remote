@@ -349,6 +349,12 @@ body.idle-hide:has(#paneLyrics:not([hidden])) .side{flex-basis:40%}
   transition:transform .5s cubic-bezier(.22,.61,.36,1);
   will-change:transform;
 }
+/* the .now/.side split resizing (see above) reflows this column's width,
+   which moves every line and would otherwise fight the transition above --
+   each mid-resize reposition retargeting it produces the jump this is
+   fixing. Cut over to an instant, per-frame follow for the resize's
+   duration so the centred line tracks the width change directly instead. */
+body.art-resizing .lyrics.synced{transition:none}
 .lyrics.synced .lyric{
   font-size:clamp(23px,3.4vw,38px);line-height:1.24;font-weight:700;
   letter-spacing:-.01em;color:rgba(255,255,255,.34);
@@ -3126,6 +3132,22 @@ const cap = (s) => s[0].toUpperCase() + s.slice(1);
 let tab = PANES.includes(store.data.tab) ? store.data.tab : 'queue';
 let view = VIEWS.includes(store.data.view) ? store.data.view : 'player';
 
+/* Growing the cover resizes #paneLyrics, which is exactly what was making the
+   centred line jump (see .lyrics.synced in the stylesheet). Called from
+   every place that can flip whether the cover is grown -- idle-hide
+   toggling and switching tabs -- but only actually does anything the moment
+   that flips, so it doesn't go near the per-line scroll the rest of the
+   time. */
+let artGrown = false;
+function syncArtGrowth() {
+  const grown = document.body.classList.contains('idle-hide') && !$('paneLyrics').hidden;
+  if (grown === artGrown) return;
+  artGrown = grown;
+  document.body.classList.add('art-resizing');
+  clearTimeout(syncArtGrowth._t);
+  syncArtGrowth._t = setTimeout(() => document.body.classList.remove('art-resizing'), 650);
+}
+
 function setTab(name) {
   tab = name;
   store.data.tab = name; store.save();
@@ -3138,6 +3160,7 @@ function setTab(name) {
     btn.tabIndex = (t === name || (!TABS.includes(name) && t === TABS[0])) ? 0 : -1;
   }
   for (const p of PANES) $('pane' + cap(p)).hidden = p !== name;
+  syncArtGrowth();
   if (name === 'queue') loadQueue();
   if (name === 'search' && !searchFound) renderHistory();
   if (name === 'lyrics') {
@@ -3869,11 +3892,12 @@ function armIdle() {
   clearTimeout(idleTimer);
   idleTimer = null;
   if (!store.data.idleHide || state.paused || !state.song || document.hidden || anyDialogOpen()) return;
-  idleTimer = setTimeout(() => document.body.classList.add('idle-hide'), IDLE_DELAY);
+  idleTimer = setTimeout(() => { document.body.classList.add('idle-hide'); syncArtGrowth(); }, IDLE_DELAY);
 }
 
 function wakeIdle() {
   document.body.classList.remove('idle-hide');
+  syncArtGrowth();
   armIdle();
 }
 
