@@ -1081,15 +1081,16 @@ store.load();
    works unmodified. Search stays real-shaped but empty rather than faked: the
    internal renderer JSON it depends on is not worth reproducing here. */
 const DEMO_CONNECTION = { id: 'demo', name: 'Demo', url: 'demo:', token: '' };
-const demoArt = (h) => 'data:image/svg+xml;utf8,' + encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="hsl(${h} 55% 32%)"/><circle cx="210" cy="90" r="150" fill="hsl(${(h + 40) % 360} 65% 55%)" opacity=".35"/></svg>`
-);
+/* real videos, real thumbnails off YouTube's own CDN -- same as any track a
+   real connection would show, rather than an invented band over a colour
+   swatch. Four well-known ones so next/previous and the queue have
+   something to demonstrate. */
 const DEMO_TRACKS = [
-  { videoId: 'demo-1', title: 'Analog Skyline', artist: 'The Night Ferry', album: 'Departures', duration: 214, hue: 200 },
-  { videoId: 'demo-2', title: 'Paper Lanterns', artist: 'Kilo & Vale', album: 'Paper Lanterns', duration: 187, hue: 320 },
-  { videoId: 'demo-3', title: 'Low Tide', artist: 'Marrow', album: 'Low Tide EP', duration: 251, hue: 40 },
-  { videoId: 'demo-4', title: 'Static Bloom', artist: 'Halide', album: 'Static Bloom', duration: 198, hue: 150 }
-].map(t => Object.assign({ imageSrc: demoArt(t.hue) }, t));
+  { videoId: 'dQw4w9WgXcQ', title: 'Never Gonna Give You Up', artist: 'Rick Astley', album: 'Whenever You Need Somebody', duration: 213 },
+  { videoId: '9bZkp7q19f0', title: 'Gangnam Style', artist: 'PSY', album: 'Psy 6 (Six Rules), Part 1', duration: 253 },
+  { videoId: 'kJQP7kiw5Fk', title: 'Despacito', artist: 'Luis Fonsi ft. Daddy Yankee', album: 'Vida', duration: 282 },
+  { videoId: 'fJ9rUzIMcZQ', title: 'Bohemian Rhapsody', artist: 'Queen', album: 'A Night at the Opera', duration: 355 }
+].map(t => Object.assign({ imageSrc: `https://i.ytimg.com/vi/${t.videoId}/hqdefault.jpg` }, t));
 const demoState = {
   idx: 0, paused: false, elapsedAt: 0, resumedAt: performance.now(),
   like: 'INDIFFERENT', shuffle: false, repeat: 'NONE', volume: 70, muted: false,
@@ -1159,9 +1160,10 @@ async function demoApi(method, path, body) {
   }
   if (path === '/api/v1/queue' && method === 'GET') return { items: demoState.queue.map(demoQueueItem) };
   if (path === '/api/v1/queue' && method === 'POST') {
+    const id = (body && body.videoId) || 'demo-custom-' + Date.now().toString(36);
     demoState.queue.splice(demoState.idx + 1, 0, {
-      videoId: 'demo-custom-' + Date.now().toString(36), title: 'Custom track',
-      artist: (body && body.videoId) || '', album: '', duration: 200, imageSrc: demoArt(0)
+      videoId: id, title: 'Pasted track', artist: id, album: '', duration: 200,
+      imageSrc: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
     });
     return null;
   }
@@ -3499,7 +3501,10 @@ let mediaArmed = false;
 
 function wireMediaHandlers() {
   const ms = navigator.mediaSession;
-  const on = (name, fn) => { try { ms.setActionHandler(name, fn); } catch {} };
+  /* still bound if demo mode gets switched on after a real connection already
+     armed the session -- a stray hardware key would otherwise reach the fake
+     track exactly the way arming itself is skipped for below */
+  const on = (name, fn) => { try { ms.setActionHandler(name, (...a) => { if (!store.data.demoMode) fn(...a); }); } catch {} };
   on('play', () => act(() => api.post('/api/v1/play')));
   on('pause', () => act(() => api.post('/api/v1/pause')));
   on('previoustrack', () => act(() => api.post('/api/v1/previous')));
@@ -3517,9 +3522,15 @@ function wireMediaHandlers() {
 
 /* Arming waits for play() to resolve before believing it worked, and stays
    subscribed until it does. Setting the flag up front and unsubscribing after a
-   single gesture meant one rejected promise disabled this for the session. */
+   single gesture meant one rejected promise disabled this for the session.
+
+   Demo mode skips this entirely. Once armed, this page holds the OS's media
+   key focus indefinitely (the silent loop keeps the session alive) -- so a
+   headset or keyboard's next/previous button meant for something else
+   entirely lands here instead and silently advances the fake track. With no
+   real player behind it, that just looks like the demo changing on its own. */
 function armMediaSession() {
-  if (mediaArmed || !('mediaSession' in navigator)) return;
+  if (mediaArmed || store.data.demoMode || !('mediaSession' in navigator)) return;
   if (!hold.src) hold.src = silentLoopUrl();
   hold.play().then(() => {
     mediaArmed = true;
