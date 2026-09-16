@@ -2819,7 +2819,7 @@ $('bPlay').onclick = () => {
    touch and pen only; a mouse click stays immediate and the keyboard already
    covers seeking on a desktop. */
 const artBtn = $('artToggle');
-const SWIPE = 48, DOUBLE_TAP = 300, DRAG_START = 8;
+const SWIPE = 48, DOUBLE_TAP = 300, DRAG_START = 8, RESTART_AT = 3;
 let artFlung = 0, artFlungTimer = null;    // the direction it was pushed, 0 at home
 let flungSrc = null;                       // the cover it carried into the frame
 let tapTimer = null, lastTapAt = 0, gestureAt = 0;
@@ -2861,6 +2861,12 @@ const settleArt = () => railSet(0, true);
 /* right is back, matching the direction the queue moves in */
 function flingArt(dir) {
   clearTimeout(artFlungTimer);
+  /* this far into the track, previous restarts it instead of stepping back --
+     so the cover has nowhere to go and should not swipe as if it did */
+  if (dir > 0 && currentElapsed() > RESTART_AT) {
+    act(() => api.post('/api/v1/previous'));
+    return settleArt();
+  }
   /* going back, the cover before the one being landed on is not known -- and
      the one being left is now what comes next, not what came before */
   if (dir > 0) leftBehind = null;
