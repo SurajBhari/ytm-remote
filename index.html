@@ -2852,7 +2852,11 @@ function railSet(dx, animate) {
    edge of the queue is something you feel instead of something that ignores you */
 function artTransform(dx) {
   const w = artBtn.offsetWidth || 1;
-  const has = dx > 0 ? artPrevEl.src !== BLANK : artNextEl.src !== BLANK;
+  /* this far into the track a drag right restarts it rather than stepping
+     back, so the previous cover has nothing to be dragged in for */
+  const has = dx > 0
+    ? currentElapsed() <= RESTART_AT && artPrevEl.src !== BLANK
+    : artNextEl.src !== BLANK;
   railSet(has ? dx : Math.sign(dx) * Math.min(Math.abs(dx), w * 0.14) * 0.6, false);
 }
 
