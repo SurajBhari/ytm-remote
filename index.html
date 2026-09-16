@@ -3912,9 +3912,16 @@ function wakeIdle() {
   armIdle();
 }
 
-for (const ev of ['mousemove', 'mousedown', 'keydown', 'wheel', 'touchstart']) {
+for (const ev of ['mousemove', 'mousedown', 'keydown', 'wheel']) {
   addEventListener(ev, wakeIdle, { passive: true });
 }
+/* touch is filtered: a tap, swipe, or two/three-finger gesture on the cover
+   works the same whether idle-hide is showing or not, so it should not be
+   what dismisses it -- only a touch outside that interaction area should. */
+addEventListener('touchstart', (e) => {
+  if (e.touches.length > 1 || artBtn.contains(e.target)) return;
+  wakeIdle();
+}, { passive: true });
 document.addEventListener('close', wakeIdle, true);   // dialogs don't bubble it
 
 /* ---------------- boot ---------------- */
