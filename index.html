@@ -3104,6 +3104,7 @@ track.addEventListener('pointermove', (e) => { if (scrubbing) { state.elapsed = 
 track.addEventListener('pointerup', (e) => {
   if (!scrubbing) return;
   scrubbing = false; track.classList.remove('live');
+  armIdle();
   const secs = posFromEvent(e);
   localSeek(secs);
   act(() => api.post('/api/v1/seek-to', { seconds: Math.round(secs) }));
@@ -3902,7 +3903,7 @@ const anyDialogOpen = () => !!document.querySelector('dialog[open]');
 function armIdle() {
   clearTimeout(idleTimer);
   idleTimer = null;
-  if (!store.data.idleHide || state.paused || !state.song || document.hidden || anyDialogOpen()) return;
+  if (!store.data.idleHide || state.paused || !state.song || document.hidden || anyDialogOpen() || scrubbing) return;
   idleTimer = setTimeout(() => { document.body.classList.add('idle-hide'); syncArtGrowth(); }, IDLE_DELAY);
 }
 
