@@ -2819,7 +2819,7 @@ $('bPlay').onclick = () => {
    touch and pen only; a mouse click stays immediate and the keyboard already
    covers seeking on a desktop. */
 const artBtn = $('artToggle');
-const SWIPE = 48, DOUBLE_TAP = 300, DRAG_START = 8, RESTART_AT = 3;
+const SWIPE = 48, DOUBLE_TAP = 300, DRAG_START = 8, RESTART_AT = 5;
 let artFlung = 0, artFlungTimer = null;    // the direction it was pushed, 0 at home
 let flungSrc = null;                       // the cover it carried into the frame
 let tapTimer = null, lastTapAt = 0, gestureAt = 0;
