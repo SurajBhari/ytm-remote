@@ -2327,15 +2327,17 @@ function pickBest(list, song) {
 }
 
 /* 429 means the provider is throttling us, which is temporary and must not be
-   remembered as "this track has no lyrics" */
-let lyricsThrottled = false;
-async function getJSON(url) {
+   remembered as "this track has no lyrics".
+   The flag rides along with the lookup rather than living in a module variable:
+   the prefetch below can be in the air while the pane is loading another track,
+   and one lookup's 429 must not be read as the other's. */
+async function getJSON(url, ctx) {
   const r = await fetch(url, { mode: 'cors' });
-  if (r.status === 429) { lyricsThrottled = true; return null; }
+  if (r.status === 429) { ctx.throttled = true; return null; }
   return r.ok ? r.json() : null;
 }
 
-async function fetchFromLRCLIB(song) {
+async function fetchFromLRCLIB(song, ctx) {
   const title = song.title || '';
   const artist = primaryArtist(song.artist);
   const dur = Math.round(song.songDuration || 0);
@@ -2349,7 +2351,7 @@ async function fetchFromLRCLIB(song) {
     const q = new URLSearchParams({ artist_name: artist, track_name: title });
     if (song.album) q.set('album_name', song.album);
     if (dur) q.set('duration', String(dur));
-    const j = await getJSON('https://lrclib.net/api/get?' + q);
+    const j = await getJSON('https://lrclib.net/api/get?' + q, ctx);
     if (j) {
       // an exact hit that is already synced is as good as it gets
       if (syncUsable(j, dur)) return pickBest([j], song);
@@ -2362,7 +2364,7 @@ async function fetchFromLRCLIB(song) {
     new URLSearchParams({ q: title })
   ]) {
     try {
-      const list = await getJSON('https://lrclib.net/api/search?' + q);
+      const list = await getJSON('https://lrclib.net/api/search?' + q, ctx);
       if (Array.isArray(list)) pool.push(...list);
     } catch {}
     if (pool.some(c => syncUsable(c, dur))) break;   // enough to choose from
@@ -2375,11 +2377,11 @@ async function fetchFromLRCLIB(song) {
   return null;
 }
 
-async function fetchFromLyricsOvh(song) {
+async function fetchFromLyricsOvh(song, ctx) {
   const title = song.title || '';
   const artist = primaryArtist(song.artist);
   try {
-    const j = await getJSON(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
+    const j = await getJSON(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`, ctx);
     if (j && j.lyrics && j.lyrics.trim()) {
       return { synced: false, lines: null, plain: j.lyrics.trim(), note: '' };
     }
@@ -2394,16 +2396,50 @@ const LYRIC_PROVIDERS = {
   lyricsovh: { label: 'Lyrics.ovh', hint: 'Plain text only, no timing', fetch: fetchFromLyricsOvh }
 };
 
-async function fetchLyrics(song) {
+async function fetchLyrics(song, ctx) {
   for (const p of lyricProviderPrefs()) {
     if (!p.on) continue;
     const provider = LYRIC_PROVIDERS[p.id];
     if (!provider) continue;
     let hit = null;
-    try { hit = await provider.fetch(song); } catch {}
+    try { hit = await provider.fetch(song, ctx); } catch {}
     if (hit && (hit.synced || hit.plain)) return hit;
   }
   return null;
+}
+
+/* A lookup is two or three round trips, so the pane sits on "Looking for
+   lyrics" for a beat every time the track changes. The next track is known
+   while the current one is still playing, so it is looked up then and is
+   already in the cache by the time it arrives. */
+const durSecs = (t) => String(t || '').split(':').reduce((a, p) => a * 60 + (+p || 0), 0);
+let prefetchTimer = 0, prefetching = false;
+
+function prefetchNext() {
+  clearTimeout(prefetchTimer);
+  prefetchTimer = setTimeout(prefetchNextLyrics, 1500);   // let the open track's own lookup land first
+}
+
+async function prefetchNextLyrics() {
+  if (prefetching || !active()) return;
+  prefetching = true;
+  try {
+    const items = queueItems(await api.get('/api/v1/queue'));
+    const at = items.findIndex(t => t.selected);
+    const next = at < 0 ? null : items[at + 1];
+    if (!next || !next.videoId || lyricsCache.has(next.videoId)) return;
+    const ctx = {};
+    /* the queue carries a byline where the player carries an artist, and on
+       some rows that byline is "Artist • Album • 3:21" */
+    const res = await fetchLyrics({
+      title: next.title,
+      artist: (next.by || '').split('•')[0],
+      songDuration: durSecs(next.dur)
+    }, ctx);
+    /* a throttled miss is the provider saying "not now", not "no lyrics", and
+       caching it would make the tab report nothing found once the track starts */
+    if (!ctx.throttled) lyricsCache.set(next.videoId, res || null);
+  } catch {} finally { prefetching = false; }
 }
 
 let lyricLines = null;      // [{t,text}] when synced
@@ -2429,16 +2465,17 @@ async function loadLyrics(force) {
   let res = lyricsCache.get(s.videoId);
   if (res === undefined || force) {
     lyricsMessage('Looking for lyrics', `${s.title || ''} -- ${primaryArtist(s.artist) || ''}`);
-    lyricsThrottled = false;
-    try { res = await fetchLyrics(s); } catch { res = null; }
+    const ctx = {};
+    try { res = await fetchLyrics(s, ctx); } catch { res = null; }
     if (lyricFor !== s.videoId) return;          // the track moved on while we waited
-    if (!res && lyricsThrottled) {
+    if (!res && ctx.throttled) {
       lyricFor = null;                           // let reopening the tab try again
       return lyricsMessage('Lyrics service is busy', 'LRCLIB is rate limiting requests. Open this tab again in a moment.');
     }
     lyricsCache.set(s.videoId, res);
   }
   if (lyricFor !== s.videoId) return;
+  prefetchNext();
   if (!res) return lyricsMessage('No lyrics found', 'Nothing matched this track on LRCLIB or lyrics.ovh.');
   renderLyrics(res);
 }
