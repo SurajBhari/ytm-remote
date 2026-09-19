@@ -539,7 +539,14 @@ function openSocket() {
     if (ws !== sock) return;
     lastPush = performance.now();
     let m; try { m = JSON.parse(ev.data); } catch { return; }
-    if (m.type !== 'PLAYER_INFO') return;
+    /* The player sends one full PLAYER_INFO on connect and then a stream of
+       POSITION_CHANGED, which carries a position and nothing else -- including
+       across a track change. Dropping those was not free: the frame had already
+       refreshed lastPush, so the one-second poll stood down as well, and the
+       widget sat on a finished track for as long as the socket stayed up. A
+       frame with no track in it is the cue to go and ask for one, which is what
+       the main app does with the same message. */
+    if (m.type !== 'PLAYER_INFO') return pollSong();
     if (typeof m.isPlaying === 'boolean') setPaused(!m.isPlaying);
     if (typeof m.position === 'number') applyPosition(m.position, false);
     if (m.song && m.song.videoId) {
