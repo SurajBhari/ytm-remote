@@ -299,6 +299,33 @@ body.idle-hide:has(#paneLyrics:not([hidden])) .side{flex-basis:40%}
 .pane{scrollbar-width:none}
 .pane::-webkit-scrollbar{width:0;height:0}
 
+/* Volume moved by gesture has nowhere to report itself: two fingers work
+   anywhere on the page, the arrow keys work with the slider scrolled out of
+   frame, and on a phone there is no slider on screen at all. The cover is the
+   one thing always in view, so the level is drawn on it -- a tank filling from
+   the bottom, translucent the whole way, because the artwork is still what you
+   are looking at. It is only up while the volume is moving. */
+.vol-tank{
+  position:absolute;inset:0;border-radius:inherit;overflow:hidden;
+  pointer-events:none;opacity:0;
+  transition:opacity .28s cubic-bezier(.2,0,0,1);
+}
+.vol-tank.on{opacity:1}
+.vol-tank .fill{
+  position:absolute;left:0;right:0;bottom:0;height:var(--vol-fill,0%);
+  background:linear-gradient(to top,rgba(255,255,255,.3),rgba(255,255,255,.14));
+  border-top:2px solid rgba(255,255,255,.75);
+  /* short enough to stay under the finger, long enough not to step */
+  transition:height .12s linear;
+}
+.vol-tank .val{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:clamp(30px,11vmin,64px);font-weight:700;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;
+  color:rgba(255,255,255,.96);text-shadow:0 2px 16px rgba(0,0,0,.6);
+}
+@media(prefers-reduced-motion:reduce){.vol-tank,.vol-tank .fill{transition:none}}
+
 /* ---- lyrics ---- */
 .lyr-pane{
   /* soften the edges so lines enter and leave rather than being cut */
@@ -832,6 +859,11 @@ body.offline .art-btn::after{content:none}
               <img class="art" id="artB" alt="" aria-hidden="true" draggable="false" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
             </span>
             <span class="art-cell"><img class="art on" id="artNext" alt="" aria-hidden="true" draggable="false" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></span>
+          </span>
+          <!-- the volume readout; the slider keeps the accessible name, so this
+               is decoration as far as a screen reader is concerned -->
+          <span class="vol-tank" id="volTank" aria-hidden="true">
+            <span class="fill"></span><span class="val" id="volVal"></span>
           </span>
         </button>
       </div>
@@ -3112,17 +3144,33 @@ volEl.addEventListener('change', (e) => {
 volEl.addEventListener('pointerup', () => { volDragging = false; });
 volEl.addEventListener('blur', () => { volDragging = false; });
 
+/* The cover shows the level for as long as it is moving -- see .vol-tank. This
+   is the readout for every way of changing the volume that is not the slider
+   itself, which is the only one that already shows what it is doing. */
+let volTankTimer;
+function showVolTank() {
+  const tank = $('volTank');
+  tank.style.setProperty('--vol-fill', state.volume + '%');
+  $('volVal').textContent = state.volume;
+  tank.classList.add('on');
+  clearTimeout(volTankTimer);
+  volTankTimer = setTimeout(() => tank.classList.remove('on'), 900);
+}
+
 /* Shared by the wheel and the arrow keys: the send is deferred so a fast scroll
    or a held key is one request at the end rather than one per notch. */
 let volSendTimer;
 function nudgeVolume(delta) {
   const next = Math.max(0, Math.min(100, state.volume + delta));
-  if (next === state.volume) return;
+  /* nothing moved because it is already at the end of its travel -- but the
+     gesture was still made, so it still gets an answer */
+  if (next === state.volume) return showVolTank();
   state.volume = next;
   volumeSeeded = true;
   volDragging = true;            // keep readings off it while it is being moved
   volEl.value = next;            // renderTransport skips the slider while dragging
   renderTransport();
+  showVolTank();
   clearTimeout(volSendTimer);
   volSendTimer = setTimeout(() => {
     volDragging = false;
