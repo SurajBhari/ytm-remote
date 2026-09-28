@@ -1924,6 +1924,7 @@ async function pollSong() {
   if (!active()) return;
   try {
     const s = await api.get('/api/v1/song');
+    lastFresh = performance.now();
     if (!connected) { connected = true; lamp('on', store.data.demoMode ? 'Demo mode' : 'Connected'); }
     if (!s) {
       state.song = null; state.duration = 0; state.elapsed = 0; state.paused = true;
@@ -2010,7 +2011,7 @@ function openSocket() {
   sock.onerror = () => {};
   sock.onmessage = (ev) => {
     if (ws !== sock) return;
-    lastPush = performance.now();
+    lastPush = lastFresh = performance.now();
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.type === 'PLAYER_INFO') {
       if (typeof m.isPlaying === 'boolean') setPaused(!m.isPlaying);
@@ -3628,16 +3629,39 @@ function wireMediaHandlers() {
 function armMediaSession() {
   if (mediaArmed || store.data.demoMode || !('mediaSession' in navigator)) return;
   if (!hold.src) hold.src = silentLoopUrl();
+  holdWanted = true;
   hold.play().then(() => {
     mediaArmed = true;
     wireMediaHandlers();
+    mediaTrack = null;
     updateMediaSession();
     removeEventListener('pointerdown', armMediaSession);
     removeEventListener('keydown', armMediaSession);
-  }).catch(() => {});          // the next gesture tries again
+  }).catch(() => { holdWanted = false; });          // the next gesture tries again
 }
 addEventListener('pointerdown', armMediaSession);
 addEventListener('keydown', armMediaSession);
+
+/* Arming used to be a one-way door: the flag went up, the gesture listeners
+   came off, and nothing ever put them back. But the loop can stop without
+   being asked -- the process is suspended and resumed, a call comes in, audio
+   focus goes to another app -- and a loop that has stopped has taken the media
+   session with it. That left the lock screen holding whichever track was
+   playing when the page went away, with no path back short of a reload.
+   `holdWanted` separates a stop this page asked for from one it did not; an
+   unasked-for stop surrenders the session and waits for the next tap. */
+let holdWanted = false;
+
+function disarmMediaSession() {
+  if (!mediaArmed) return;
+  mediaArmed = false;
+  mediaTrack = null;
+  addEventListener('pointerdown', armMediaSession);
+  addEventListener('keydown', armMediaSession);
+}
+
+hold.addEventListener('pause', () => { if (holdWanted) disarmMediaSession(); });
+hold.addEventListener('emptied', () => { if (holdWanted) disarmMediaSession(); });
 
 let mediaTrack = null;
 function updateMediaSession() {
@@ -3661,8 +3685,15 @@ function updateMediaSession() {
      the player is paused leaves the browser believing this page is still
      playing, so the notification keeps offering pause and never delivers a play
      action, and the track can never be resumed from there. */
-  if (state.paused && !hold.paused) hold.pause();
-  else if (!state.paused && hold.paused) hold.play().catch(() => {});
+  if (state.paused && !hold.paused) { holdWanted = false; hold.pause(); }
+  else if (!state.paused && hold.paused) {
+    holdWanted = true;
+    /* Resuming needs audio focus back, and a page that has been in the
+       background for a while may no longer be allowed to take it. Treating
+       that rejection as nothing to do was what froze the notification on a
+       paused track for good. */
+    hold.play().catch(() => { holdWanted = false; disarmMediaSession(); });
+  }
   /* setPositionState throws on anything inconsistent and an OS given nothing
      draws a scrubber that cannot be dragged, so the numbers are clamped into
      agreement rather than passed on as they arrive */
@@ -4024,6 +4055,9 @@ document.addEventListener('close', wakeIdle, true);   // dialogs don't bubble it
 let songTimer, auxTimer, queueTimer;
 /* the last time the one second timer actually ran, and the last poll it sent */
 let lastTick = 0, lastPoll = 0;
+/* When anything last actually arrived -- a socket push or a poll that came
+   back -- as opposed to when one was last sent. */
+let lastFresh = 0;
 
 /* Everything this page knows arrives over a socket or a poll, and a tab left in
    the background loses both: the system parks the timers and drops the socket
@@ -4037,6 +4071,13 @@ function revive() {
   closeSocket();
   openSocket();
   lastPoll = 0;
+  lastFresh = performance.now();     // give the new connection its own grace period
+  /* A process that was suspended can come back with the OS's copy of the
+     metadata gone, or still describing the track before last. Nothing rewrites
+     it while the video id matches what was last published, so what the lock
+     screen shows would stay wrong until the track changed. Forgetting what was
+     published makes the next update unconditional. */
+  mediaTrack = null;
   pollSong(); pollAux();
   if (!document.hidden && tab === 'queue') loadQueue(true);
 }
@@ -4059,13 +4100,20 @@ function connect() {
   /* a socket that is delivering already carries everything this asks for, so the
      poll stands down while it is talking and takes over on its own the moment it
      goes quiet -- no flag to keep in step with the connection state */
-  lastTick = 0; lastPoll = 0;
+  lastTick = 0; lastPoll = 0; lastFresh = 0;
   songTimer = setInterval(() => {
     const now = performance.now();
     /* a tick that is a quarter of a minute late means the tab was frozen or the
        machine slept -- whatever the socket says about itself, it is not live */
     if (lastTick && now - lastTick > 15000) { lastTick = now; return revive(); }
     lastTick = now;
+    /* Backgrounded, the socket is usually the only thing speaking, and a
+       socket that died quietly looks exactly like a player nobody is touching:
+       no pushes either way. Waiting for the close event is no good, because it
+       may never come, and the reconnect backoff is a timer the browser is free
+       to throttle to once a minute out here. Half a minute of silence is taken
+       as a dead connection rather than a quiet one. */
+    if (document.hidden && lastFresh && now - lastFresh > 30000) return revive();
     if (now - lastPush < 3000) return;
     /* the page used to stand down entirely while hidden, which is exactly when
        nothing else was watching: a socket that died in the background left the
