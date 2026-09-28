@@ -3680,20 +3680,32 @@ function updateMediaSession() {
       });
     } catch {}
   }
-  ms.playbackState = state.paused ? 'paused' : 'playing';
-  /* The silent element must follow the desktop player. Holding it playing while
-     the player is paused leaves the browser believing this page is still
-     playing, so the notification keeps offering pause and never delivers a play
-     action, and the track can never be resumed from there. */
-  if (state.paused && !hold.paused) { holdWanted = false; hold.pause(); }
-  else if (!state.paused && hold.paused) {
+  /* Which of play or pause the notification offers is this property's job, and
+     it has to be republished after any change to the element, because starting
+     playback resets it to 'playing' behind our back. */
+  const publishState = () => { ms.playbackState = state.paused ? 'paused' : 'playing'; };
+
+  /* The silent loop holds this page's audio focus, and an OS only keeps a media
+     notification for a page that has it. Following the desktop player into a
+     pause handed that focus back, and a tab with no audio focus is one the
+     browser throttles to a timer a minute and then freezes outright -- so a
+     player left paused for a while came back to a lock screen still showing
+     whatever had been playing when the page went away, with nothing running to
+     correct it.
+
+     The loop now runs for as long as the page is open and `playbackState`
+     alone carries the distinction. The cost is real: this page holds audio
+     focus the whole time, so another app that wants it has to take it, which
+     stops the loop and drops the notification until the next tap here. */
+  if (hold.paused) {
     holdWanted = true;
-    /* Resuming needs audio focus back, and a page that has been in the
-       background for a while may no longer be allowed to take it. Treating
-       that rejection as nothing to do was what froze the notification on a
-       paused track for good. */
-    hold.play().catch(() => { holdWanted = false; disarmMediaSession(); });
+    /* Starting needs audio focus, and a page that has been in the background a
+       while may no longer be allowed to take it. Treating that rejection as
+       nothing to do was what froze the notification on a paused track for
+       good; surrendering the session lets the next tap rebuild it. */
+    hold.play().then(publishState).catch(() => { holdWanted = false; disarmMediaSession(); });
   }
+  publishState();
   /* setPositionState throws on anything inconsistent and an OS given nothing
      draws a scrubber that cannot be dragged, so the numbers are clamped into
      agreement rather than passed on as they arrive */
