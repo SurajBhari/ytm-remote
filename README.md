@@ -70,6 +70,8 @@ uploaded at several different durations and the wrong one drifts audibly.
 | `←` `→` | Seek ∓10s | `S` | Shuffle |
 | `N` / `P` | Next / previous | `R` | Repeat |
 | `L` | Like | `F` | Fullscreen (this page) |
+| `↑` `↓` | Volume | `0`-`9` | Jump to 0-90% of the track |
+| `?` | Shortcuts list | | |
 
 ## Browser support
 
