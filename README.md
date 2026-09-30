@@ -50,6 +50,15 @@ Scrolling over the volume control nudges it.
 
 <img src="screenshot-queue.png" alt="The Up next tab on a phone, the playing track marked with bars" width="320">
 
+**Recently played** — the last 50 tracks this remote saw, kept in your browser. They fill
+the Search tab when its box is empty, and on a phone the last five sit under the queue too.
+
+**Stream widget** — `widget.html` is a transparent now-playing overlay for OBS, with seven
+themes. **Info → Widget** builds its link. With controls on, hovering it in OBS's
+Interact window or in a Custom Browser Dock shows previous, play and next. `Space`/`K`, `N`, `P`
+and the keyboard's media keys work there too while it has focus. Choose *Display only* to turn
+both off.
+
 **Search** — search the YouTube Music catalogue and drop any result into the queue. You can also paste a raw video ID.
 
 ![The Search tab, results ready to drop into the queue](screenshot-search.png)

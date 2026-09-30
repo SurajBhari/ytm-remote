@@ -445,6 +445,12 @@ body.art-resizing .lyrics.synced{transition:none}
 .sec h3{margin:0;font-size:13px;font-weight:500}
 .sec .n{font-size:12px;color:var(--text-3)}
 .sec-more{padding:4px 4px 0}
+/* the queue's tail on a phone, where there is no search pane beside it to hold
+   the history; on wider layouts Search is one tab away and shows it already */
+#queueRecent{display:none}
+@media(max-width:719px),(max-width:1000px) and (orientation:portrait){
+  #queueRecent{display:block;padding-bottom:8px}
+}
 /* 8px between 32px buttons is what makes their 40px hit areas meet exactly
    rather than overlap */
 .row .acts{display:flex;gap:8px;flex:none;opacity:0;transition:opacity .12s cubic-bezier(.2,0,0,1)}
@@ -896,6 +902,7 @@ body.offline .art-btn::after{content:none}
           <span class="count" id="queueCount"></span>
         </div>
         <div id="queueList"><div class="empty"><strong>No player connected</strong>Add your YouTube Music player under Connections to see the queue.</div></div>
+        <div id="queueRecent"></div>
       </div>
 
       <div class="pane lyr-pane" id="paneLyrics" role="tabpanel" hidden>
@@ -1072,6 +1079,12 @@ body.offline .art-btn::after{content:none}
       <div style="display:flex;flex-direction:column;gap:8px">
         <div class="widget-opts" id="widgetThemes"></div>
         <div class="widget-opts" id="widgetPause"></div>
+        <div class="widget-opts" id="widgetControls"></div>
+        <div class="hint">
+          With controls on, hovering the widget in OBS's Interact window, or in a
+          Custom Browser Dock, shows previous, play and next. Space or K, N, P and
+          the keyboard's media keys work there too while it has focus.
+        </div>
         <div style="display:flex;gap:8px">
           <input class="field" id="widgetUrl" readonly style="flex:1;min-width:0">
           <button class="txtbtn" id="widgetCopy">Copy link</button>
@@ -2791,6 +2804,33 @@ function remember(s) {
   if (list.length > HISTORY_MAX) list.length = HISTORY_MAX;
   store.save();
   if (tab === 'search' && !searchFound) renderHistory();
+  renderRecent();
+}
+
+/* The same list under the queue, cut short: the queue is what that pane is
+   for, and five is enough to catch the one that just went by. */
+const RECENT_SHORT = 5;
+let recentAll = false;
+function renderRecent() {
+  const box = $('queueRecent');
+  const cur = state.song && state.song.videoId;
+  const items = played().filter(h => h.videoId !== cur);
+  if (!items.length) return box.replaceChildren();
+  const frag = document.createDocumentFragment();
+  const head = el('div', 'sec');
+  head.appendChild(el('h3', null, 'Recently played'));
+  head.appendChild(el('span', 'n', String(items.length)));
+  frag.appendChild(head);
+  const shown = recentAll ? items : items.slice(0, RECENT_SHORT);
+  for (const h of shown) frag.appendChild(searchRow({ videoId: h.videoId, title: h.title, sub: h.by, meta: '', thumb: h.thumb }));
+  if (items.length > RECENT_SHORT) {
+    const wrap = el('div', 'sec-more');
+    const b = el('button', 'txtbtn', recentAll ? 'Show fewer' : 'Show all ' + items.length);
+    b.onclick = () => { recentAll = !recentAll; renderRecent(); };
+    wrap.appendChild(b);
+    frag.appendChild(wrap);
+  }
+  box.replaceChildren(frag);
 }
 
 function renderHistory() {
@@ -2812,7 +2852,7 @@ function renderHistory() {
   for (const h of items) frag.appendChild(searchRow({ videoId: h.videoId, title: h.title, sub: h.by, meta: '', thumb: h.thumb }));
   const wrap = el('div', 'sec-more');
   const b = el('button', 'txtbtn', 'Clear history');
-  b.onclick = () => { store.data.history = []; store.save(); renderHistory(); };
+  b.onclick = () => { store.data.history = []; store.save(); renderHistory(); renderRecent(); };
   wrap.appendChild(b);
   frag.appendChild(wrap);
   list.replaceChildren(frag);
@@ -3861,11 +3901,13 @@ function renderKeys() {
    page's settings, so the choices have to travel in the URL itself. */
 const WIDGET_THEMES = [['card', 'Card'], ['minimal', 'Minimal'], ['poster', 'Poster'], ['bar', 'Bar'], ['vinyl', 'Vinyl'], ['retro', 'Retro'], ['terminal', 'Terminal']];
 const WIDGET_PAUSE = [['dim', 'Dim when paused'], ['hide', 'Hide when paused']];
+const WIDGET_CONTROLS = [['on', 'Controls on hover'], ['off', 'Display only']];
 
 function widgetUrl() {
   const w = store.data.widget;
   const u = new URL('widget.html', location.href);
   const params = { theme: w.theme, pause: w.pause };
+  if (w.controls === 'off') params.controls = 'off';
   /* the widget runs in OBS's own browser, which never sees this tab's saved
      connection, so the address and token travel in the link instead */
   const c = active();
@@ -3879,13 +3921,15 @@ function renderWidgetOpts() {
   const group = (box, options, key) => {
     box.replaceChildren();
     for (const [val, label] of options) {
-      const b = el('button', val === w[key] ? 'on' : '', label);
+      /* a setting saved before the option existed reads as its first choice */
+      const b = el('button', val === (w[key] || options[0][0]) ? 'on' : '', label);
       b.onclick = () => { w[key] = val; store.save(); renderWidgetOpts(); };
       box.appendChild(b);
     }
   };
   group($('widgetThemes'), WIDGET_THEMES, 'theme');
   group($('widgetPause'), WIDGET_PAUSE, 'pause');
+  group($('widgetControls'), WIDGET_CONTROLS, 'controls');
   $('widgetUrl').value = widgetUrl();
 }
 
@@ -4221,7 +4265,7 @@ if ('serviceWorker' in navigator) {
 /* nothing on the screen waits for it, so it goes after everything that does */
 if (window.requestIdleCallback) requestIdleCallback(bakeDissolve); else setTimeout(bakeDissolve, 400);
 
-renderSong(); renderProgress(); renderTransport(); renderFullscreen(); renderConnection(); renderHistory();
+renderSong(); renderProgress(); renderTransport(); renderFullscreen(); renderConnection(); renderHistory(); renderRecent();
 applyBgAnim();
 if (!store.data.demoMode && !store.data.connections.length) { renderConns(); dlg.showModal(); }
 else connect();
