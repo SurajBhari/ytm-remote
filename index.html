@@ -659,6 +659,8 @@ body.idle-hide,body.idle-hide *{cursor:none}
      stated once for every view that is not the player, so new tabs inherit it */
   body:not([data-view="player"]) .bar{height:56px;gap:8px}
   body:not([data-view="player"]) .pb-track{order:1;flex:1 1 auto;min-width:0}
+  body:not([data-view="player"]) .pb-track{cursor:pointer}
+  body:not([data-view="player"]) .pb-track .s a{pointer-events:none}
   body:not([data-view="player"]) .pb-transport{order:2;flex:none}
   body:not([data-view="player"]) .times,
   body:not([data-view="player"]) #bPrev,
@@ -1176,6 +1178,7 @@ async function demoApi(method, path, body) {
     return null;
   }
   if (path === '/api/v1/toggle-mute') { demoState.muted = !demoState.muted; return null; }
+  if (path === '/api/v1/shuffle' && method === 'GET') return { state: demoState.shuffle };
   if (path === '/api/v1/shuffle') { demoState.queue.sort(() => Math.random() - 0.5); return null; }
   if (path === '/api/v1/repeat-mode') return { mode: demoState.repeat };
   if (path === '/api/v1/switch-repeat') { demoState.repeat = REPEAT_CYCLE[demoState.repeat] || 'ALL'; return null; }
@@ -1763,6 +1766,7 @@ function renderSong() {
     $('nowMeta').hidden = true;
     applyTheme(null);
     animatedFor = null;
+    syncTitle();
     return;
   }
   const year = s.uploadDate && !isNaN(new Date(s.uploadDate))
@@ -1916,6 +1920,16 @@ function renderTransport() {
   if (!volDragging) $('vol').value = state.volume;
   updateMediaSession();
   syncWakeLock();
+  syncTitle();
+}
+
+/* The tab is the one place this page is seen while it is not being looked at,
+   in a strip of other tabs, so it says what is playing and whether it is. */
+function syncTitle() {
+  const s = state.song;
+  document.title = s && s.title
+    ? (state.paused ? '' : '\u25B6 ') + [s.title, s.artist].filter(Boolean).join(' \u2022 ')
+    : 'YTM Remote';
 }
 
 /* ---------------- polling ---------------- */
@@ -3357,6 +3371,17 @@ fitArt();
 /* line heights change with the width, so the slide offset has to follow */
 new ResizeObserver(() => { if (lyricWrap) focusLyric(lyricIdx); }).observe($('paneLyrics'));
 $('miniOpen').onclick = () => setView('player');
+$('barTitle').onclick = () => setView('player');
+/* On a phone the bar is a mini player sitting over some other view, and a tap
+   on it means "take me back to the player" -- not "leave for the album on
+   YouTube Music". Capture runs before the artist and album links get the
+   click, so they are stopped here; like and dislike keep their own jobs. */
+document.querySelector('.pb-track').addEventListener('click', (e) => {
+  if (!stacked.matches || view === 'player') return;
+  if (e.target.closest('#bLike,#bDislike')) return;
+  e.preventDefault(); e.stopPropagation();
+  setView('player');
+}, true);
 
 $('bQueueRefresh').onclick = () => loadQueue();
 $('bQueueClear').onclick = () => act(() => api.del('/api/v1/queue'), 'Queue cleared').then(() => setTimeout(() => loadQueue(true), 400));
@@ -3385,6 +3410,15 @@ document.addEventListener('keydown', (e) => {
   if (k === 'arrowup' || k === 'arrowdown') {
     e.preventDefault();
     return nudgeVolume(k === 'arrowup' ? 5 : -5);
+  }
+  /* 0-9 jump to that tenth of the track, the way YouTube's own player does */
+  if (k >= '0' && k <= '9' && k.length === 1) {
+    const d = state.duration;
+    if (!d) return;
+    e.preventDefault();
+    const secs = d * (+k / 10);
+    localSeek(secs);
+    return act(() => api.post('/api/v1/seek-to', { seconds: Math.round(secs) }));
   }
   if (k === '?') {
     e.preventDefault();
@@ -3788,6 +3822,7 @@ const KEYS = [
   ['N', 'Next track'],
   ['P', 'Previous track'],
   ['← →', 'Seek back or forward'],
+  ['0-9', 'Jump to that tenth of the track'],
   ['↑ ↓', 'Volume'],
   ['L', 'Like'],
   ['M', 'Mute'],
