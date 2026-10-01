@@ -518,8 +518,12 @@ body.art-resizing .lyrics.synced{transition:none}
   cursor:pointer;touch-action:none;
 }
 .track .rail{position:absolute;top:0;left:0;right:0;height:4px;background:rgba(255,255,255,.24)}
-.track .fill{position:absolute;top:0;left:0;height:4px;background:var(--accent);width:0}
+/* fill and knob move by transform alone -- they redraw every frame, and a width
+   or left change would cost a layout each time */
+.track .fill{position:absolute;top:0;left:0;height:4px;background:var(--accent);width:100%;transform-origin:left;transform:scaleX(0)}
+.track .knob-pos{position:absolute;inset:0;pointer-events:none;transform:translateX(-100%)}
 .track .knob{
+  left:100%;
   position:absolute;top:2px;width:12px;height:12px;border-radius:var(--r-round);
   background:var(--accent);transform:translate(-50%,-50%);opacity:0;
   transition-property:opacity,top;transition-duration:.12s;
@@ -652,8 +656,15 @@ body.idle-hide,body.idle-hide *{cursor:none}
 .idle-cap .t,.idle-cap .a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .idle-cap .t{font-size:16px;font-weight:600;color:var(--text)}
 .idle-cap .a{font-size:13px;color:var(--text-3);margin-top:2px}
+/* with the bar gone, a bare line along the bottom edge keeps the track's progress */
+.idle-line{
+  position:fixed;left:0;right:0;bottom:0;height:3px;z-index:5;pointer-events:none;
+  background:var(--accent);transform-origin:left;transform:scaleX(0);
+  opacity:0;transition:opacity .6s ease;
+}
+body.idle-hide .idle-line{opacity:1}
 @media(prefers-reduced-motion:reduce){
-  .top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune,.now-meta,.idle-cap{transition:none}
+  .top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune,.now-meta,.idle-cap,.idle-line{transition:none}
 }
 
 /* ============ tablet and below ============ */
@@ -955,7 +966,7 @@ body.offline .art-btn::after{content:none}
     <!-- the seek control is the bar's top edge, full width at every size -->
     <div class="track" id="track" role="slider" tabindex="0" aria-label="Seek position"
          aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-disabled="true">
-      <div class="rail"></div><div class="fill" id="fill"></div><div class="knob" id="knob"></div>
+      <div class="rail"></div><div class="fill" id="fill"></div><div class="knob-pos" id="knobPos"><div class="knob"></div></div>
     </div>
 
     <div class="pb-transport">
@@ -1007,6 +1018,7 @@ body.offline .art-btn::after{content:none}
         <svg viewBox="0 0 24 24"><path id="fullIcon" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
     </div>
   </footer>
+  <div class="idle-line" id="idleLine"></div>
 
   <!-- mobile only -->
   <nav class="nav" role="tablist" aria-label="Sections">
@@ -1926,15 +1938,22 @@ const currentElapsed = () => {
   return Math.min(e, state.duration);
 };
 
+/* runs every frame while playing: the bars move by transform each time, but the
+   readout and aria only change once a second, so they are written only then */
+let progressSig = '';
 function renderProgress() {
   const d = state.duration, e = scrubbing ? state.elapsed : currentElapsed();
+  const frac = d ? Math.min(1, Math.max(0, e / d)) : 0;
+  $('fill').style.transform = 'scaleX(' + frac + ')';
+  $('idleLine').style.transform = 'scaleX(' + frac + ')';
+  $('knobPos').style.transform = 'translateX(' + (frac - 1) * 100 + '%)';
+  const sig = Math.floor(e) + '|' + d + '|' + store.data.remaining;
+  if (sig === progressSig) return;
+  progressSig = sig;
   $('elapsed').textContent = mmss(e);
   const rem = store.data.remaining && d;
   $('duration').textContent = rem ? '-' + mmss(d - e) : mmss(d);
   $('duration').title = rem ? 'Show track length' : 'Show time remaining';
-  const pct = d ? (e / d) * 100 : 0;
-  $('fill').style.width = pct + '%';
-  $('knob').style.left = pct + '%';
   const t = $('track');
   t.setAttribute('aria-valuemax', Math.floor(d));
   t.setAttribute('aria-valuenow', Math.floor(e));
