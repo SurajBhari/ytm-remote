@@ -1983,6 +1983,9 @@ function renderTransport() {
   updateMediaSession();
   syncWakeLock();
   syncTitle();
+  /* a track already playing when the page opens never flips the paused flag,
+     so without this nothing starts the countdown until the first input */
+  if (!idleTimer && !document.body.classList.contains('idle-hide')) armIdle();
 }
 
 /* The tab is the one place this page is seen while it is not being looked at,
