@@ -656,15 +656,22 @@ body.idle-hide,body.idle-hide *{cursor:none}
 .idle-cap .t,.idle-cap .a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .idle-cap .t{font-size:16px;font-weight:600;color:var(--text)}
 .idle-cap .a{font-size:13px;color:var(--text-3);margin-top:2px}
-/* with the bar gone, a bare line along the bottom edge keeps the track's progress */
+/* with the bar gone, the seek bar's fill drops to the bottom edge and keeps the
+   track's progress there. Resting, the line sits exactly over the bar's fill
+   (--idle-from, measured in JS) but unseen; going idle it shows at once and
+   slides down while the bar fades around it, and waking it slides back up and
+   only disappears once it has landed on the fill again. `translate` carries
+   the slide so the per-frame scaleX in `transform` never fights it. */
 .idle-line{
-  position:fixed;left:0;right:0;bottom:0;height:3px;z-index:5;pointer-events:none;
+  position:fixed;left:0;right:0;bottom:0;height:4px;z-index:5;pointer-events:none;
   background:var(--accent);transform-origin:left;transform:scaleX(0);
-  opacity:0;transition:opacity .6s ease;
+  translate:0 var(--idle-from,0px);
+  opacity:0;transition:translate .6s ease,opacity 0s linear .6s;
 }
-body.idle-hide .idle-line{opacity:1}
+body.idle-hide .idle-line{translate:0 0;opacity:1;transition:translate .6s ease,opacity 0s}
+body.no-idle-line .idle-line{display:none}
 @media(prefers-reduced-motion:reduce){
-  .top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune,.now-meta,.idle-cap,.idle-line{transition:none}
+  .top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune,.now-meta,.idle-cap,.idle-line,body.idle-hide .idle-line{transition:none}
 }
 
 /* ============ tablet and below ============ */
@@ -1090,6 +1097,12 @@ body.offline .art-btn::after{content:none}
         Moving the mouse, tapping, or pausing brings it straight back.
       </div>
       <div class="widget-opts" id="displayIdle"></div>
+      <div class="label" style="margin-top:16px">Progress line when idle</div>
+      <div class="hint" style="margin-bottom:8px">
+        As the controls fade, the seek bar slides down to the bottom edge and
+        keeps showing how far into the track you are.
+      </div>
+      <div class="widget-opts" id="displayIdleLine"></div>
       <div class="label" style="margin-top:16px">Demo mode</div>
       <div class="hint" style="margin-bottom:8px">
         Plays a fake track locally so the interface can be tried without the
@@ -1151,7 +1164,7 @@ body.offline .art-btn::after{content:none}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, demoMode: false, idleHide: true },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, demoMode: false, idleHide: true, idleLine: true },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
@@ -4100,6 +4113,14 @@ function renderDisplayOpts() {
     b.onclick = () => { store.data.idleHide = val === 'on'; store.save(); renderDisplayOpts(); wakeIdle(); };
     idleBox.appendChild(b);
   }
+  const lineBox = $('displayIdleLine');
+  lineBox.replaceChildren();
+  for (const [val, label] of DISPLAY_IDLE) {
+    const on = (val === 'on') === !!store.data.idleLine;
+    const b = el('button', on ? 'on' : '', label);
+    b.onclick = () => { store.data.idleLine = val === 'on'; store.save(); renderDisplayOpts(); applyIdleLine(); };
+    lineBox.appendChild(b);
+  }
   const demoBox = $('displayDemo');
   demoBox.replaceChildren();
   for (const [val, label] of DISPLAY_DEMO) {
@@ -4174,10 +4195,29 @@ function armIdle() {
   clearTimeout(idleTimer);
   idleTimer = null;
   if (!store.data.idleHide || state.paused || !state.song || document.hidden || anyDialogOpen() || scrubbing) return;
+  /* placed now, so the line is already resting on the fill when the slide
+     starts -- set in the same frame as the class flip, it would have no
+     starting point to transition from */
+  placeIdleLine();
   idleTimer = setTimeout(() => { document.body.classList.add('idle-hide'); syncArtGrowth(); }, IDLE_DELAY);
 }
 
+/* the gap between the bottom edge and the seek bar's fill, which is where the
+   idle line starts its slide from and returns to. The bar only fades while
+   idle, so the fill keeps its place to be measured either way. */
+function placeIdleLine() {
+  const line = $('idleLine'), fill = $('fill').getBoundingClientRect();
+  const from = fill.height ? fill.top - (innerHeight - line.offsetHeight) : 0;
+  line.style.setProperty('--idle-from', from + 'px');
+}
+
+function applyIdleLine() {
+  document.body.classList.toggle('no-idle-line', !store.data.idleLine);
+}
+applyIdleLine();
+
 function wakeIdle() {
+  if (document.body.classList.contains('idle-hide')) placeIdleLine();
   document.body.classList.remove('idle-hide');
   syncArtGrowth();
   armIdle();
