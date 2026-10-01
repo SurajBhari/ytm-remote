@@ -83,8 +83,7 @@ body::before{
    The current cover, blown up and blurred past recognition, standing in for
    the flat colour wash above. The wrapper is its own stacking context so the
    two layers' z-index only ever compete with each other, never with .app.
-   Oversized well past the viewport and rotated about its own centre, so a
-   corner is never exposed as it turns.
+   Rotated about its own centre; .bg-art below is sized so no edge shows.
    The rotation is a plain CSS animation, not JS stepping a custom property --
    stepping it at 24fps from the main thread forced a style recalculation on
    this (huge, heavily blurred) layer every ~41ms and visibly lagged the page.
@@ -97,11 +96,18 @@ body.bg-anim .bg-art-wrap{animation:bg-rotate 60s ease-in-out infinite;will-chan
 /* paused stops the rotation rather than merely dimming through it -- a still
    frame reads as "stopped", a dim frame still turning reads as broken */
 body.bg-anim.dim .bg-art-wrap{animation-play-state:paused}
+/* A square twice the viewport's longer side, centred: its radius (100vmax)
+   clears the half-diagonal (~71vmax) plus the blur's soft edge, so no edge of
+   it ever turns into view on a wide desktop or a tall phone. The blur is
+   sized against that square rather than in pixels -- a fixed 70px on a cover
+   blown up seven times was only ~10px on the cover itself, so any hard edge
+   in the art (a gradient that jumps from dark to light) survived as a crisp
+   line across the middle of the page, sweeping round as it turned. */
 .bg-art{
   --bg-sat:1.4;--bg-bright:.55;
-  position:absolute;top:-60%;left:-60%;right:-60%;bottom:-60%;
+  position:absolute;top:50%;left:50%;width:200vmax;height:200vmax;margin:-100vmax 0 0 -100vmax;
   background-size:cover;background-position:center;
-  filter:blur(70px) saturate(var(--bg-sat)) brightness(var(--bg-bright));
+  filter:blur(10vmax) saturate(var(--bg-sat)) brightness(var(--bg-bright));
   opacity:0;transition:opacity 900ms ease,filter .5s cubic-bezier(.2,0,0,1);
 }
 /* the same lights-going-down treatment as the cover and the plain wash below,
