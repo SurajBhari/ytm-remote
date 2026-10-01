@@ -843,6 +843,37 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
 @media(hover:hover) and (pointer:fine){.lp-row .order button:not(:disabled):hover{background:var(--hover);color:var(--text)}}
 .lp-row .order svg{width:16px;height:16px;fill:currentColor}
 
+/* ---------------- icons ----------------
+   One drawn family rather than stock glyphs: a 2px rounded line, with the
+   transport filled because it is the part pressed without looking. .ln
+   strokes a path; .so fills it and rounds its corners with a stroke of the
+   same colour. Both name the path, which outranks the fill the svg rules
+   above hand down. */
+path.ln{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+path.so{fill:currentColor;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+/* a rating that is on is filled in, not only recoloured */
+.ib.on path.fills{fill:currentColor}
+/* the two halves of the triangle fold into the two bars */
+#playIcon{transition:d .24s cubic-bezier(.2,0,0,1)}
+.ib svg{transition:transform .16s cubic-bezier(.2,0,0,1)}
+.ib:active:not([disabled]) svg{transform:scale(.86)}
+/* each toggle answers the press in its own way before the server does */
+.ib.pop svg{animation:ic-pop .36s cubic-bezier(.2,0,0,1)}
+#bDislike.pop svg{animation-name:ic-pop-down}
+#bRepeat.pop svg{animation:ic-spin .45s cubic-bezier(.2,0,0,1)}
+#bShuffle.pop svg{animation:ic-shake .36s ease}
+#bShare.pop svg{animation:ic-fly .5s cubic-bezier(.4,0,.2,1)}
+@keyframes ic-pop{40%{transform:scale(1.25) rotate(-12deg)}}
+@keyframes ic-pop-down{40%{transform:scale(1.25) rotate(12deg)}}
+@keyframes ic-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes ic-shake{25%{transform:translateX(-3px)}50%{transform:translateX(3px)}75%{transform:translateX(-1px)}}
+@keyframes ic-fly{
+  45%{transform:translate(8px,-8px) scale(.6);opacity:0}
+  55%{transform:translate(-8px,8px) scale(.6);opacity:0}
+}
+/* the record on the Player tab turns while something is playing */
+body:not(.dim) #navPlayer[aria-selected="true"] svg{animation:ic-spin 4s linear infinite}
+
 .toast{
   position:fixed;left:50%;bottom:calc(var(--bar-h) + 16px);transform:translateX(-50%);
   background:#f1f1f1;color:#030303;border-radius:var(--r-md);padding:12px 16px;font-size:13px;
@@ -888,16 +919,16 @@ body.offline .art-btn::after{content:none}
     <span class="lamp" id="lamp"><i aria-hidden="true"></i><span id="lampText" role="status" aria-live="polite">Not connected</span></span>
     <span class="grow"></span>
     <button class="ib small" id="btnSearch" aria-label="Search" title="Search">
-      <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 0 3.5 10.9l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/></svg>
+      <svg viewBox="0 0 24 24"><path class="ln" d="M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13zM15.3 15.3 20.5 20.5M7.6 9.4a3.2 3.2 0 0 1 1.8-1.8"/></svg>
     </button>
     <button class="ib small" id="btnInfo" aria-label="Info" title="Info">
-      <svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/></svg>
+      <svg viewBox="0 0 24 24"><path class="ln" d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM10.5 11.5H12v5M10.5 16.5h3M12 7.8h.01"/></svg>
     </button>
     <button class="ib small" id="btnSleep" aria-label="Sleep timer" title="Sleep timer">
-      <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.91-.1-1.36A5.39 5.39 0 0 1 16.5 12.9 5.4 5.4 0 0 1 11.1 7.5a5.39 5.39 0 0 1 2.26-4.4A9.5 9.5 0 0 0 12 3z"/></svg><span id="sleepLeft" aria-hidden="true"></span>
+      <svg viewBox="0 0 24 24"><path class="ln" d="M19.5 14.2A8 8 0 1 1 9.8 4.5a6.5 6.5 0 0 0 9.7 9.7zM17.5 3v4M15.5 5h4"/></svg><span id="sleepLeft" aria-hidden="true"></span>
     </button>
     <button class="ib small" id="btnConn" aria-label="Connections" title="Connections">
-      <svg viewBox="0 0 24 24"><path d="M1 18v3h3a3 3 0 0 0-3-3zm0-4v2a5 5 0 0 1 5 5h2a7 7 0 0 0-7-7zm0-4v2a9 9 0 0 1 9 9h2A11 11 0 0 0 1 10zm20-7H3a2 2 0 0 0-2 2v3h2V5h18v14h-7v2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg>
+      <svg viewBox="0 0 24 24"><path class="ln" d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5M3 13a6 6 0 0 1 6 6M3 17a2 2 0 0 1 2 2"/></svg>
     </button>
   </header>
 
@@ -979,11 +1010,11 @@ body.offline .art-btn::after{content:none}
     <div class="pb-transport">
       <div class="ctrls">
         <button class="ib small" id="bPrev" aria-label="Previous track" title="Previous (P)">
-          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm12 12V6l-9 6z"/></svg></button>
+          <svg viewBox="0 0 24 24"><path class="so" d="M5.5 6h2v12h-2zM18.5 6.5v11L10 12z"/></svg></button>
         <button class="ib play" id="bPlay" aria-label="Play" title="Play or pause (Space)">
-          <svg viewBox="0 0 24 24"><path id="playIcon" d="M8 5v14l11-7z"/></svg></button>
+          <svg viewBox="0 0 24 24"><path class="so" id="playIcon" d="M8 5.5L13.25 8.75L13.25 15.25L8 18.5ZM13.25 8.75L18.5 12L18.5 12L13.25 15.25Z"/></svg></button>
         <button class="ib small" id="bNext" aria-label="Next track" title="Next (N)">
-          <svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18V6l9 6z"/></svg></button>
+          <svg viewBox="0 0 24 24"><path class="so" d="M16.5 6h2v12h-2zM5.5 6.5v11L14 12z"/></svg></button>
       </div>
       <div class="times">
         <span id="elapsed">0:00</span>
@@ -1004,25 +1035,25 @@ body.offline .art-btn::after{content:none}
         <span class="s" id="barSub"></span>
       </span>
       <button class="ib small" id="bLike" aria-label="Like" title="Like (L)">
-        <svg viewBox="0 0 24 24"><path d="M2 10h4v11H2zM8 10l5-8a2.4 2.4 0 0 1 2.2 3.2L14 9h5.6A2.4 2.4 0 0 1 22 11.8l-1.7 7A2.6 2.6 0 0 1 17.8 21H8z"/></svg></button>
+        <svg viewBox="0 0 24 24"><path class="ln fills" d="M3 10.5h2V20H3zM8 10.5l4-6.6a1.9 1.9 0 0 1 3.4 1.5L14.4 9.5h4.8a2 2 0 0 1 2 2.3l-1.3 6.6a2 2 0 0 1-2 1.6H8z"/></svg></button>
       <button class="ib small" id="bDislike" aria-label="Dislike" title="Dislike">
-        <svg viewBox="0 0 24 24"><path d="M22 14h-4V3h4zM16 14l-5 8a2.4 2.4 0 0 1-2.2-3.2L10 15H4.4A2.4 2.4 0 0 1 2 12.2l1.7-7A2.6 2.6 0 0 1 6.2 3H16z"/></svg></button>
+        <svg viewBox="0 0 24 24"><path class="ln fills" transform="rotate(180 12 12)" d="M3 10.5h2V20H3zM8 10.5l4-6.6a1.9 1.9 0 0 1 3.4 1.5L14.4 9.5h4.8a2 2 0 0 1 2 2.3l-1.3 6.6a2 2 0 0 1-2 1.6H8z"/></svg></button>
     </div>
 
     <div class="pb-right">
       <span class="vol">
         <button class="ib small" id="bMute" aria-label="Mute" title="Mute (M)">
-          <svg viewBox="0 0 24 24"><path id="volIcon" d="M4 9h3l4-4v14l-4-4H4zm11.5 3a3.5 3.5 0 0 0-2-3.2v6.4a3.5 3.5 0 0 0 2-3.2z"/></svg></button>
+          <svg viewBox="0 0 24 24"><path class="ln" id="volIcon" d="M3.5 9.5h3l4.5-4v13l-4.5-4h-3zM15 9.5a3.5 3.5 0 0 1 0 5M17.8 6.8a7.5 7.5 0 0 1 0 10.4"/></svg></button>
         <input type="range" id="vol" min="0" max="100" step="1" value="0" aria-label="Volume">
       </span>
       <button class="ib small" id="bRepeat" aria-label="Repeat off" title="Repeat (R)">
-        <svg viewBox="0 0 24 24"><path id="repeatIcon" d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg></button>
+        <svg viewBox="0 0 24 24"><path class="ln" id="repeatIcon" d="M17 2.5l3 3-3 3M20 5.5H8a4 4 0 0 0-4 4v1M7 21.5l-3-3 3-3M4 18.5h12a4 4 0 0 0 4-4v-1"/></svg></button>
       <button class="ib small" id="bShuffle" aria-label="Shuffle" title="Shuffle (S)">
-        <svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4V8h-2.2l-2.3 3-1.3-1.7L13.6 6H17zM3 6h4.2l6.5 9H17v-3l4 4-4 4v-3h-4.3L6.2 8H3zM3 16h4.4l1.7-2.3 1.3 1.7L8.2 18H3z"/></svg></button>
+        <svg viewBox="0 0 24 24"><path class="ln" d="M3 6.5h2.5c5.5 0 7.5 11 13 11H21M3 17.5h2.5c2 0 3.4-1.5 4.6-3.4M13.9 9.9c1.2-1.9 2.6-3.4 4.6-3.4H21M18 3.5l3 3-3 3M18 14.5l3 3-3 3"/></svg></button>
       <button class="ib small" id="bShare" aria-label="Share this track" title="Share">
-        <svg viewBox="0 0 24 24"><path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"/></svg></button>
+        <svg viewBox="0 0 24 24"><path class="ln" d="M21 3 3 10.5l7 3 3 7.5zM10 13.5 21 3"/></svg></button>
       <button class="ib small" id="bFull" aria-label="Enter fullscreen" aria-pressed="false" title="Fullscreen (F)">
-        <svg viewBox="0 0 24 24"><path id="fullIcon" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
+        <svg viewBox="0 0 24 24"><path class="ln" id="fullIcon" d="M4 9V6a2 2 0 0 1 2-2h3M15 4h3a2 2 0 0 1 2 2v3M20 15v3a2 2 0 0 1-2 2h-3M9 20H6a2 2 0 0 1-2-2v-3"/></svg></button>
     </div>
   </footer>
   <div class="idle-line" id="idleLine"></div>
@@ -1030,11 +1061,11 @@ body.offline .art-btn::after{content:none}
   <!-- mobile only -->
   <nav class="nav" role="tablist" aria-label="Sections">
     <button role="tab" id="navPlayer" aria-selected="true">
-      <svg viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h5V3z"/></svg>Player</button>
+      <svg viewBox="0 0 24 24"><path class="ln" d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5zM6.5 12A5.5 5.5 0 0 1 12 6.5"/></svg>Player</button>
     <button role="tab" id="navQueue" aria-selected="false">
-      <svg viewBox="0 0 24 24"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-9v7.2a3 3 0 1 0 2 2.8V9h3V7z"/></svg>Up next</button>
+      <svg viewBox="0 0 24 24"><path class="ln" d="M3 6h11M3 11h11M3 16h6M17 18.5V5.5l4 1.5M17 18.5a1.75 1.75 0 1 1-3.5 0a1.75 1.75 0 1 1 3.5 0z"/></svg>Up next</button>
     <button role="tab" id="navLyrics" aria-selected="false">
-      <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4zm0 4h11v2H4zm0 4h16v2H4zm0 4h9v2H4z"/></svg>Lyrics</button>
+      <svg viewBox="0 0 24 24"><path class="ln" d="M12 2.5a4.5 4.5 0 1 1 0 9a4.5 4.5 0 1 1 0-9zM7.5 7h9M9.2 10.6 10.8 21.5h2.4l1.6-10.9M19.5 4.5a4 4 0 0 1 0 5M4.5 4.5a4 4 0 0 0 0 5"/></svg>Lyrics</button>
   </nav>
 </div>
 
@@ -1362,7 +1393,7 @@ const svg = (d, size) => {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   s.setAttribute('viewBox', '0 0 24 24');
   const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  p.setAttribute('d', d); s.appendChild(p);
+  p.setAttribute('class', 'ln'); p.setAttribute('d', d); s.appendChild(p);
   if (size) { s.style.width = s.style.height = size + 'px'; }
   return s;
 };
@@ -1976,7 +2007,7 @@ function renderProgress() {
 
 function renderTransport() {
   document.body.classList.toggle('dim', state.paused);
-  $('playIcon').setAttribute('d', state.paused ? 'M8 5v14l11-7z' : 'M6 5h4v14H6zm8 0h4v14h-4z');
+  $('playIcon').setAttribute('d', state.paused ? 'M8 5.5L13.25 8.75L13.25 15.25L8 18.5ZM13.25 8.75L18.5 12L18.5 12L13.25 15.25Z' : 'M7 5.5L10 5.5L10 18.5L7 18.5ZM14 5.5L17 5.5L17 18.5L14 18.5Z');
   $('bPlay').setAttribute('aria-label', state.paused ? 'Play' : 'Pause');
   $('artToggle').setAttribute('aria-label', state.paused ? 'Play' : 'Pause');
   $('bLike').classList.toggle('on', state.like === 'LIKE');
@@ -1986,12 +2017,12 @@ function renderTransport() {
   $('bRepeat').classList.toggle('on', mode !== 'NONE');
   $('bRepeat').setAttribute('aria-label', mode === 'ONE' ? 'Repeat one' : mode === 'ALL' ? 'Repeat all' : 'Repeat off');
   $('repeatIcon').setAttribute('d', mode === 'ONE'
-    ? 'M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2zM11 15V9h-1l-2 1v1h1.5v4z'
-    : 'M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z');
+    ? 'M17 2.5l3 3-3 3M20 5.5H8a4 4 0 0 0-4 4v1M7 21.5l-3-3 3-3M4 18.5h12a4 4 0 0 0 4-4v-1M10.8 10.6l1.7-1.1v5.5'
+    : 'M17 2.5l3 3-3 3M20 5.5H8a4 4 0 0 0-4 4v1M7 21.5l-3-3 3-3M4 18.5h12a4 4 0 0 0 4-4v-1');
   $('bMute').classList.toggle('on', !!state.muted);
   $('volIcon').setAttribute('d', state.muted || state.volume === 0
-    ? 'M4 9h3l4-4v14l-4-4H4zm13.3 6.9-1.4-1.4L17.5 13l-1.6-1.5 1.4-1.4 1.6 1.5 1.6-1.5 1.4 1.4L20.3 13l1.6 1.5-1.4 1.4-1.6-1.5z'
-    : 'M4 9h3l4-4v14l-4-4H4zm11.5 3a3.5 3.5 0 0 0-2-3.2v6.4a3.5 3.5 0 0 0 2-3.2zM17 6.4a6 6 0 0 1 0 11.2v-2.2a4 4 0 0 0 0-6.8z');
+    ? 'M3.5 9.5h3l4.5-4v13l-4.5-4h-3zM15.5 9.5l5 5M20.5 9.5l-5 5'
+    : 'M3.5 9.5h3l4.5-4v13l-4.5-4h-3zM15 9.5a3.5 3.5 0 0 1 0 5M17.8 6.8a7.5 7.5 0 0 1 0 10.4');
   if (!volDragging) $('vol').value = state.volume;
   updateMediaSession();
   syncWakeLock();
@@ -2272,10 +2303,10 @@ addEventListener('pointerup', () => endDrag(true));
 addEventListener('pointercancel', () => endDrag(false));
 
 const ICON = {
-  up: 'M12 8l6 6H6z', down: 'M12 16l-6-6h12z',
-  close: 'M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z',
-  next: 'M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-9v7.2a3 3 0 1 0 2 2.8V9h3V7z',
-  open: 'M14 3v2h3.6l-9.8 9.8 1.4 1.4L19 6.4V10h2V3zM19 19H5V5h6V3H3v18h18v-8h-2z'
+  up: 'M6 15l6-6 6 6', down: 'M6 9l6 6 6-6',
+  close: 'M6 6l12 12M18 6 6 18',
+  next: 'M3 6h11M3 11h11M3 16h6M17 18.5V5.5l4 1.5M17 18.5a1.75 1.75 0 1 1-3.5 0a1.75 1.75 0 1 1 3.5 0z',
+  open: 'M14 4h6v6M20 4l-9 9M19 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4'
 };
 
 function queueRow(t, i) {
@@ -3185,6 +3216,12 @@ const rate = (want) => () => {
   renderTransport();
 };
 $('bLike').onclick = () => { rate('LIKE')(); act(() => api.post('/api/v1/like')); };
+for (const id of ['bLike', 'bDislike', 'bRepeat', 'bShuffle', 'bShare']) {
+  const b = $(id);
+  /* restarted on every press, so a quick second tap still gets one */
+  b.addEventListener('click', () => { b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); });
+  b.addEventListener('animationend', () => b.classList.remove('pop'));
+}
 $('bDislike').onclick = () => { rate('DISLIKE')(); act(() => api.post('/api/v1/dislike')); };
 $('bShuffle').onclick = () => act(() => api.post('/api/v1/shuffle'), 'Queue shuffled').then(() => setTimeout(() => { if (tab === 'queue') loadQueue(true); }, 500));
 const REPEAT_CYCLE = { NONE: 'ALL', ALL: 'ONE', ONE: 'NONE' };
@@ -3199,8 +3236,8 @@ $('duration').onclick = () => {
   renderProgress();          // paused, nothing else would repaint it
 };
 /* fullscreen applies to this page, not the desktop player */
-const FULL_ENTER = 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z';
-const FULL_EXIT  = 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z';
+const FULL_ENTER = 'M4 9V6a2 2 0 0 1 2-2h3M15 4h3a2 2 0 0 1 2 2v3M20 15v3a2 2 0 0 1-2 2h-3M9 20H6a2 2 0 0 1-2-2v-3';
+const FULL_EXIT  = 'M9 4v3a2 2 0 0 1-2 2H4M20 9h-3a2 2 0 0 1-2-2V4M15 20v-3a2 2 0 0 1 2-2h3M4 15h3a2 2 0 0 1 2 2v3';
 const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 
 function renderFullscreen() {
@@ -4034,15 +4071,15 @@ function renderLyricProviders() {
       b.setAttribute('aria-label', label);
       b.title = label;
       b.disabled = i + by < 0 || i + by >= list.length;
-      b.innerHTML = `<svg viewBox="0 0 24 24"><path d="${path}"/></svg>`;
+      b.innerHTML = `<svg viewBox="0 0 24 24"><path class="ln" d="${path}"/></svg>`;
       b.onclick = () => {
         [list[i], list[i + by]] = [list[i + by], list[i]];
         store.save(); renderLyricProviders();
       };
       order.appendChild(b);
     };
-    move(-1, 'Move up', 'M12 6l7 7-1.4 1.4L13 9.8V19h-2V9.8l-4.6 4.6L5 13z');
-    move(1, 'Move down', 'M12 19l-7-7 1.4-1.4L11 15.2V5h2v10.2l4.6-4.6L19 12z');
+    move(-1, 'Move up', 'M12 19V5M6 11l6-6 6 6');
+    move(1, 'Move down', 'M12 5v14M6 13l6 6 6-6');
     row.appendChild(order);
     box.appendChild(row);
   });

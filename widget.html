@@ -214,13 +214,16 @@ body.no-ctl .ctl{display:none}
 .ctl button:focus-visible{outline:2px solid #fff;outline-offset:-2px}
 .ctl button.play{background:#fff;color:#0f0f0f}
 .ctl svg{width:22px;height:22px;fill:currentColor}
+/* same drawing as the remote's transport: filled, corners rounded by a stroke */
+path.so{fill:currentColor;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+#cPlayIcon{transition:d .24s cubic-bezier(.2,0,0,1)}
 </style>
 </head>
 <body>
 <div class="ctl" id="ctl" role="group" aria-label="Playback">
-  <button id="cPrev" aria-label="Previous track" title="Previous (P)"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm12 12V6l-9 6z"/></svg></button>
-  <button id="cPlay" class="play" aria-label="Play" title="Play or pause (Space)"><svg viewBox="0 0 24 24"><path id="cPlayIcon" d="M8 5v14l11-7z"/></svg></button>
-  <button id="cNext" aria-label="Next track" title="Next (N)"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18V6l9 6z"/></svg></button>
+  <button id="cPrev" aria-label="Previous track" title="Previous (P)"><svg viewBox="0 0 24 24"><path class="so" d="M5.5 6h2v12h-2zM18.5 6.5v11L10 12z"/></svg></button>
+  <button id="cPlay" class="play" aria-label="Play" title="Play or pause (Space)"><svg viewBox="0 0 24 24"><path class="so" id="cPlayIcon" d="M8 5.5L13.25 8.75L13.25 15.25L8 18.5ZM13.25 8.75L18.5 12L18.5 12L13.25 15.25Z"/></svg></button>
+  <button id="cNext" aria-label="Next track" title="Next (N)"><svg viewBox="0 0 24 24"><path class="so" d="M16.5 6h2v12h-2zM5.5 6.5v11L14 12z"/></svg></button>
 </div>
 <div class="wrap" id="wrap">
   <!-- .card only matters for the bar theme; the others read .wrap directly -->
@@ -370,7 +373,7 @@ function renderVisibility() {
   /* the vinyl theme stops the record turning while paused; every other theme
      ignores the class */
   $('artBtn').classList.toggle('paused', state.paused);
-  $('cPlayIcon').setAttribute('d', state.paused ? 'M8 5v14l11-7z' : 'M6 5h4v14H6zm8 0h4v14h-4z');
+  $('cPlayIcon').setAttribute('d', state.paused ? 'M8 5.5L13.25 8.75L13.25 15.25L8 18.5ZM13.25 8.75L18.5 12L18.5 12L13.25 15.25Z' : 'M7 5.5L10 5.5L10 18.5L7 18.5ZM14 5.5L17 5.5L17 18.5L14 18.5Z');
   $('cPlay').setAttribute('aria-label', state.paused ? 'Play' : 'Pause');
 }
 
