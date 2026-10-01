@@ -120,7 +120,7 @@ body.bg-anim::before{opacity:0}
    animates `filter` for the track-change blur, and a second author on that
    property would fight it. */
 body.dim::before{opacity:.35}
-body.dim .art-wrap,body.dim #barArt,body.dim #idleArt{filter:brightness(.62) saturate(.75) grayscale(90%)}
+body.dim .art-wrap,body.dim #barArt{filter:brightness(.62) saturate(.75) grayscale(90%)}
 .art-wrap,#barArt{transition:filter .5s cubic-bezier(.2,0,0,1)}
 @media(prefers-reduced-motion:reduce){.art-wrap,#barArt{transition:none}}
 button,input{font:inherit;color:inherit}
@@ -633,29 +633,18 @@ body.idle-hide .lyr-tune{opacity:0;pointer-events:none}
 .now-meta{opacity:0;transform:translateY(10px);transition:opacity .6s ease,transform .6s ease;pointer-events:none}
 body.idle-hide .now-meta{opacity:1;transform:translateY(0)}
 body.idle-hide,body.idle-hide *{cursor:none}
-/* On a phone every view but the player has no cover of its own -- desktop
-   keeps it beside the lyrics -- so idle left the lyrics and nothing to say
-   whose they were. This rises into the faded header's space instead, straight
-   on the page with no panel behind it, the same way .now-meta does under the
-   cover. */
-.idle-cap{display:none}
+/* On a phone the cover and title already have their place -- under the art
+   in the player, in the mini player on every other tab -- so idle leaves them
+   exactly there. Only what surrounds them goes: the bar's backing, its
+   buttons and its seek bar, which drops to the bottom edge as the idle line
+   below. The caption under the cover would be a second, moving copy of the
+   title the bar is still showing, so it stays hidden. */
 @media(max-width:719px),(max-width:1000px) and (orientation:portrait){
-  body:not([data-view="player"]) .idle-cap{
-    display:flex;align-items:center;gap:12px;position:fixed;z-index:2;
-    left:16px;right:16px;top:max(12px,env(safe-area-inset-top));
-    opacity:0;transform:translateY(10px);pointer-events:none;
-    transition:opacity .6s ease,transform .6s ease;
-  }
-  body.idle-hide:not([data-view="player"]) .idle-cap{opacity:1;transform:translateY(0)}
+  body.idle-hide .bar{opacity:1;background:transparent}
+  .bar>.track,.bar>.pb-transport,.bar>.pb-right{transition:opacity .6s ease}
+  body.idle-hide .bar>.track,body.idle-hide .bar>.pb-transport,body.idle-hide .bar>.pb-right{opacity:0}
+  body.idle-hide .now-meta{opacity:0;transform:translateY(10px)}
 }
-.idle-cap img{
-  width:48px;height:48px;flex:none;border-radius:var(--r-sm);object-fit:cover;
-  box-shadow:0 1px 2px rgba(0,0,0,.4),0 6px 16px rgba(0,0,0,.35);
-}
-.idle-cap .txt{min-width:0}
-.idle-cap .t,.idle-cap .a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.idle-cap .t{font-size:16px;font-weight:600;color:var(--text)}
-.idle-cap .a{font-size:13px;color:var(--text-3);margin-top:2px}
 /* with the bar gone, the seek bar's fill drops to the bottom edge and keeps the
    track's progress there. Resting, the line sits exactly over the bar's fill
    (--idle-from, measured in JS) but unseen; going idle it shows at once and
@@ -671,7 +660,7 @@ body.idle-hide,body.idle-hide *{cursor:none}
 body.idle-hide .idle-line{translate:0 0;opacity:1;transition:translate .6s ease,opacity 0s}
 body.no-idle-line .idle-line{display:none}
 @media(prefers-reduced-motion:reduce){
-  .top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune,.now-meta,.idle-cap,.idle-line,body.idle-hide .idle-line{transition:none}
+  .top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune,.now-meta,.idle-line,body.idle-hide .idle-line{transition:none}
 }
 
 /* ============ tablet and below ============ */
@@ -910,10 +899,6 @@ body.offline .art-btn::after{content:none}
 </div>
 <div class="app">
 
-  <div class="idle-cap" aria-hidden="true">
-    <img id="idleArt" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-    <span class="txt"><div class="t" id="idleTitle"></div><div class="a" id="idleArtist"></div></span>
-  </div>
   <header class="top">
     <span class="brand">YTM Remote</span>
     <span class="lamp" id="lamp"><i aria-hidden="true"></i><span id="lampText" role="status" aria-live="polite">Not connected</span></span>
@@ -1791,7 +1776,6 @@ function paintArt(src, cut) {
     }
     artTop ^= 1;
     $('barArt').src = src;
-    $('idleArt').src = src;
     /* Restoring on the next frame put it back before the browser had worked out
        the new opacity: a requestAnimationFrame callback runs ahead of style, so
        the change was still pending, found a transition again, and dissolved
@@ -1872,8 +1856,6 @@ function renderSong() {
   $('nowMeta').hidden = false;
   $('nowTitle').textContent = s.title || 'Untitled';
   $('nowArtist').textContent = s.artist || '';
-  $('idleTitle').textContent = s.title || 'Untitled';
-  $('idleArtist').textContent = s.artist || '';
   remember(s);
 
   /* artist • album • year, the way the reference bar reads. The first two are
@@ -4378,7 +4360,7 @@ addEventListener('online', revive);
 document.addEventListener('error', (e) => {
   const t = e.target;
   if (!t || t.tagName !== 'IMG' || t.src === BLANK) return;
-  if (t.classList.contains('art') || t.id === 'barArt' || t.id === 'idleArt') t.src = BLANK; else t.remove();
+  if (t.classList.contains('art') || t.id === 'barArt') t.src = BLANK; else t.remove();
 }, true);
 
 /* Installs the page as a home screen app and lets it open without a network.
