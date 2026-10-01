@@ -681,10 +681,14 @@ body.no-idle-line .idle-line{display:none}
    to be changed with it. */
 @media(max-width:719px),(max-width:1000px) and (orientation:portrait){
   .content{padding:0 12px 12px;gap:0}
-  /* the header carries three buttons and the name here, so the status gives up
+  /* the header carries five buttons and the name here, so the status gives up
      its words and keeps only the dot. hidden rather than removed, so it is
      still read out */
   #lampText{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  /* five buttons fit a 360px phone on a tighter gap; narrower than that the
+     name gives way rather than the header pushing the page sideways */
+  .top{gap:8px}
+  .brand{min-width:0;overflow:hidden;text-overflow:ellipsis}
   .now,.side{flex:1 1 auto}
   .nav{display:flex}
   /* only the pane matching the active tab is mounted */
@@ -756,6 +760,9 @@ body.no-idle-line .idle-line{display:none}
   body[data-view="player"] .ctrls{gap:16px}
   body[data-view="player"] .ib{width:48px;height:48px}
   body[data-view="player"] .ib svg{width:28px;height:28px}
+  /* those sizes are for the transport; the header keeps its own buttons */
+  body[data-view="player"] .top .ib{width:40px;height:40px}
+  body[data-view="player"] .top .ib svg{width:20px;height:20px}
   body[data-view="player"] .ib.play{width:64px;height:64px;background:var(--text);color:#030303}
   @media(hover:hover) and (pointer:fine){body[data-view="player"] .ib.play:hover{background:#e6e6e6}}
   body[data-view="player"] .ib.play svg{width:32px;height:32px}
@@ -915,6 +922,9 @@ body.offline .art-btn::after{content:none}
     <button class="ib small" id="btnConn" aria-label="Connections" title="Connections">
       <svg viewBox="0 0 24 24"><path class="ln" d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5M3 13a6 6 0 0 1 6 6M3 17a2 2 0 0 1 2 2"/></svg>
     </button>
+    <button class="ib small" id="bFull" aria-label="Enter fullscreen" aria-pressed="false" title="Fullscreen (F)">
+      <svg viewBox="0 0 24 24"><path class="ln" id="fullIcon" d="M4 9V6a2 2 0 0 1 2-2h3M15 4h3a2 2 0 0 1 2 2v3M20 15v3a2 2 0 0 1-2 2h-3M9 20H6a2 2 0 0 1-2-2v-3"/></svg>
+    </button>
   </header>
 
   <div class="content">
@@ -1037,8 +1047,6 @@ body.offline .art-btn::after{content:none}
         <svg viewBox="0 0 24 24"><path class="ln" d="M3 6.5h2.5c5.5 0 7.5 11 13 11H21M3 17.5h2.5c2 0 3.4-1.5 4.6-3.4M13.9 9.9c1.2-1.9 2.6-3.4 4.6-3.4H21M18 3.5l3 3-3 3M18 14.5l3 3-3 3"/></svg></button>
       <button class="ib small" id="bShare" aria-label="Share this track" title="Share">
         <svg viewBox="0 0 24 24"><path class="ln" d="M21 3 3 10.5l7 3 3 7.5zM10 13.5 21 3"/></svg></button>
-      <button class="ib small" id="bFull" aria-label="Enter fullscreen" aria-pressed="false" title="Fullscreen (F)">
-        <svg viewBox="0 0 24 24"><path class="ln" id="fullIcon" d="M4 9V6a2 2 0 0 1 2-2h3M15 4h3a2 2 0 0 1 2 2v3M20 15v3a2 2 0 0 1-2 2h-3M9 20H6a2 2 0 0 1-2-2v-3"/></svg></button>
     </div>
   </footer>
   <div class="idle-line" id="idleLine"></div>
@@ -3460,12 +3468,11 @@ function placeControls() {
   if (stacked.matches) {
     ctrls.insertBefore($('bShuffle'), $('bPrev'));
     ctrls.appendChild($('bRepeat'));
-    acts.append($('bLike'), $('bDislike'), $('bShare'), $('bFull'));   // no room on the transport row
+    acts.append($('bLike'), $('bDislike'), $('bShare'));   // no room on the transport row
   } else {
     right.appendChild($('bRepeat'));
     right.appendChild($('bShuffle'));
     right.appendChild($('bShare'));
-    right.appendChild($('bFull'));
     const track = document.querySelector('.pb-track');
     track.appendChild($('bLike'));
     track.appendChild($('bDislike'));
