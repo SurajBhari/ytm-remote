@@ -1368,6 +1368,27 @@ const api = {
   }
 };
 
+/* Older builds of the player lack the newer endpoints (home, browse, lyrics,
+   play-song...), so anything built on them asks here first. The server
+   publishes its own OpenAPI spec at /doc; a build too old to have one, or one
+   that cannot be reached, supports none of them. Read once per connection. */
+let endpoints = new Set();
+let endpointsProbed = false;
+async function probeEndpoints() {
+  endpoints = new Set();
+  const c = active();
+  if (!c || store.data.demoMode) return;
+  try {
+    const res = await fetch(c.url.replace(/\/+$/, '') + '/doc', { mode: 'cors', cache: 'no-store' });
+    if (!res.ok) return;
+    const paths = (await res.json()).paths || {};
+    const found = new Set();
+    for (const p in paths) for (const m in paths[p]) found.add(m.toUpperCase() + ' ' + p);
+    if (active() === c) endpoints = found;
+  } catch {}
+}
+const supports = (method, path) => endpoints.has(method + ' ' + path);
+
 /* ---------------- helpers ---------------- */
 const $ = (id) => document.getElementById(id);
 const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
@@ -2045,7 +2066,10 @@ async function pollSong() {
   try {
     const s = await api.get('/api/v1/song');
     lastFresh = performance.now();
-    if (!connected) { connected = true; lamp('on', store.data.demoMode ? 'Demo mode' : 'Connected'); }
+    if (!connected) {
+      connected = true; lamp('on', store.data.demoMode ? 'Demo mode' : 'Connected');
+      if (!endpointsProbed) { endpointsProbed = true; probeEndpoints(); }
+    }
     if (!s) {
       state.song = null; state.duration = 0; state.elapsed = 0; state.paused = true;
       lastVideoId = null;
@@ -4301,6 +4325,7 @@ function revive() {
 function connect() {
   clearInterval(songTimer); clearInterval(auxTimer); clearInterval(queueTimer);
   connected = false;
+  endpointsProbed = false; endpoints = new Set();
   volumeSeeded = false;
   wsRetry = 0; lastPush = 0; queueSig = ''; authNoticeShown = false;
   if (!active()) {
