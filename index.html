@@ -366,9 +366,6 @@ body.idle-hide:has(#paneLyrics:not([hidden])) .side{flex-basis:40%}
   display:block;width:100%;text-align:left;
   font-family:var(--font-lyric);
   font-size:18px;line-height:1.45;font-weight:var(--lyric-weight);
-  /* a filter rather than text-shadow: the word-by-word fill paints the text
-     with a clipped background, and text-shadow would land on top of it */
-  filter:var(--lyric-shadow);
   color:rgba(255,255,255,.38);
   padding:8px 12px;border-radius:var(--r-md);
   transition:color .3s ease;
@@ -405,8 +402,7 @@ body.art-resizing .lyrics.synced{transition:none}
   letter-spacing:-.01em;color:rgba(255,255,255,.34);
   margin:clamp(4px,1.1vh,12px) 0;cursor:pointer;
   opacity:0;transform:scale(.96);transform-origin:left center;pointer-events:none;
-  /* the same filter list in every state, or the blur snaps instead of easing */
-  filter:blur(0) var(--lyric-shadow);
+  filter:blur(0);
   transition:opacity .4s ease,transform .4s cubic-bezier(.22,.61,.36,1),
              color .4s ease,filter .4s ease;
 }
@@ -416,12 +412,27 @@ body.art-resizing .lyrics.synced{transition:none}
    edge lands near zero, so lines dissolve in instead of appearing. */
 .lyrics.synced .lyric.near{
   opacity:calc(.26 - var(--d,0) * .035);
-  filter:blur(calc(var(--d,0) * 1.5px)) var(--lyric-shadow);
+  filter:blur(calc(var(--d,0) * 1.5px));
   pointer-events:auto;
 }
-.lyrics.synced .lyric.on{opacity:1;color:var(--text);transform:scale(1);filter:blur(0) var(--lyric-shadow);pointer-events:auto}
+.lyrics.synced .lyric.on{opacity:1;color:var(--text);transform:scale(1);filter:blur(0);pointer-events:auto}
+/* The shadow is for the line being read, so only that line has one, and it
+   sits on an inner span: a filter rather than text-shadow, because the
+   word-by-word fill paints text with a clipped background and a text-shadow
+   would land on top of it; an inner span, because sharing the line's own
+   filter with the blur made the two lists differ and the blur snap. Measured
+   at phone size, a shadow on every line cost more GPU time than the text. */
+.lyrics.synced .lyric .in{display:block;transition:filter .4s ease}
+.lyrics.synced .lyric.on .in{filter:var(--lyric-shadow)}
+/* A phone's GPU pays for every blurred line on every frame of the word fill,
+   and that was the lag: the blur alone tripled the frame's GPU work. Touch
+   screens dim the far lines by opacity only. */
+@media(hover:none),(pointer:coarse){
+  .lyrics.synced .lyric,.lyrics.synced .lyric.near,.lyrics.synced .lyric.on{filter:none}
+  .lyrics.synced .lyric{transition:opacity .4s ease,transform .4s cubic-bezier(.22,.61,.36,1),color .4s ease}
+}
 /* hovering pulls a line back into focus, so you can read what you would seek to */
-@media(hover:hover) and (pointer:fine){.lyrics.synced .lyric.near:hover{opacity:.7;filter:blur(0) var(--lyric-shadow);color:rgba(255,255,255,.9)}}
+@media(hover:hover) and (pointer:fine){.lyrics.synced .lyric.near:hover{opacity:.7;filter:blur(0);color:rgba(255,255,255,.9)}}
 /* Word-timed lines: each word fills from the left as it is sung, the way a
    karaoke screen does it. --p is how far through the word the singer is; only
    the line in focus is painted this way, so the rest of the window reads exactly
@@ -436,7 +447,7 @@ body.art-resizing .lyrics.synced{transition:none}
 .lyrics.synced .lyric.blank.on{color:var(--accent)}
 
 /* plain lyrics have no timing, so nothing is clickable and the list scrolls */
-.lyrics.plain .lyric{color:rgba(255,255,255,.82);cursor:default;font-size:18px}
+.lyrics.plain .lyric{color:rgba(255,255,255,.82);cursor:default;font-size:18px;text-shadow:0 1px 1px rgba(0,0,0,.45),0 2px 10px rgba(0,0,0,.4)}
 @media(max-width:719px),(max-width:1000px) and (orientation:portrait){
   .lyrics.synced .lyric{font-size:clamp(24px,6.6vw,34px)}
   .lyrics.plain .lyric{font-size:20px}
@@ -1237,9 +1248,16 @@ body.offline .art-btn::after{content:none}
     </div>
 
     <div id="infoPaneLyrics" role="tabpanel" hidden>
+      <div class="label">Smart search</div>
       <div class="hint" style="margin-bottom:8px">
-        Providers are tried in this order; the first one with a usable match
-        wins. Turn a source off to skip it, or reorder to change who goes first.
+        On: every source is asked at once and the best kind of lyrics wins --
+        word by word, then line by line, then plain text -- with the order below
+        breaking ties. Off: the first source in the order below with anything wins.
+      </div>
+      <div class="widget-opts" id="lyricSmart" style="margin-bottom:16px"></div>
+      <div class="label">Sources</div>
+      <div class="hint" style="margin-bottom:8px">
+        Turn a source off to skip it, or reorder to change who goes first.
       </div>
       <div id="lyricProviderList" style="display:flex;flex-direction:column;gap:8px"></div>
       <div class="label" style="margin-top:16px">Font</div>
@@ -1294,7 +1312,7 @@ body.offline .art-btn::after{content:none}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, lyricFont: 'Unbounded', demoMode: false, idleHide: true, idleLine: true },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, lyricFont: 'Unbounded', smartLyrics: true, demoMode: false, idleHide: true, idleLine: true },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
@@ -2763,16 +2781,43 @@ const LYRIC_PROVIDERS = {
   lyricsovh: { label: 'Lyrics.ovh', hint: 'Plain text only, no timing', fetch: fetchFromLyricsOvh }
 };
 
+/* how good a hit is: timed to the word, timed to the line, words only, nothing */
+const lyricRank = (hit) => !hit ? 0
+  : hit.synced ? (hit.lines.some(l => l.words) ? 3 : 2)
+  : hit.plain ? 1 : 0;
+/* a source that has not answered by now is not going to be the one that helps */
+const LYRIC_TIMEOUT = 10000;
+
 async function fetchLyrics(song, ctx) {
-  for (const p of lyricProviderPrefs()) {
-    if (!p.on) continue;
-    const provider = LYRIC_PROVIDERS[p.id];
-    if (!provider || (provider.needs && !provider.needs())) continue;
-    let hit = null;
-    try { hit = await provider.fetch(song, ctx); } catch {}
-    if (hit && (hit.synced || hit.plain)) return hit;
+  const sources = lyricProviderPrefs()
+    .filter(p => p.on && LYRIC_PROVIDERS[p.id])
+    .map(p => LYRIC_PROVIDERS[p.id])
+    .filter(provider => !provider.needs || provider.needs());
+  if (!store.data.smartLyrics) {
+    /* first in your order with anything at all */
+    for (const provider of sources) {
+      let hit = null;
+      try { hit = await provider.fetch(song, ctx); } catch {}
+      if (lyricRank(hit)) return hit;
+    }
+    return null;
   }
-  return null;
+  /* Smart: every source is asked at once, and the best kind of lyrics wins,
+     your order breaking ties. The answers are read back in that order, so
+     the moment a word-timed one turns up, everything ahead of it has already
+     answered with less -- nothing can beat it, and the rest are not waited on. */
+  const asks = sources.map(provider => Promise.race([
+    Promise.resolve().then(() => provider.fetch(song, ctx)).catch(() => null),
+    new Promise(r => setTimeout(() => r(null), LYRIC_TIMEOUT))
+  ]));
+  let best = null, bestRank = 0;
+  for (const ask of asks) {
+    const hit = await ask;
+    const rank = lyricRank(hit);
+    if (rank > bestRank) { best = hit; bestRank = rank; }
+    if (bestRank === 3) break;
+  }
+  return best;
 }
 
 /* A lookup is two or three round trips, so the pane sits on "Looking for
@@ -2861,11 +2906,13 @@ function renderLyrics(res) {
     lyricLines = res.lines;
     lyricWords = [];
     lyricNodes = res.lines.map((ln, i) => {
-      const b = el('button', 'lyric' + (ln.text ? '' : ' blank'), ln.words ? null : (ln.text || '♪'));
+      const b = el('button', 'lyric' + (ln.text ? '' : ' blank'));
+      const inner = el('span', 'in', ln.words ? null : (ln.text || '♪'));
+      b.appendChild(inner);
       if (ln.words) {
         lyricWords[i] = ln.words.map((w) => {
           const node = el('span', 'w', w.text);
-          b.appendChild(node);
+          inner.appendChild(node);
           return { t: w.t, d: w.d, node, p: -1 };
         });
       }
@@ -4925,6 +4972,24 @@ function applyLyricFont() {
   if (lyricWrap) requestAnimationFrame(() => focusLyric(lyricIdx));
 }
 
+function renderLyricSmart() {
+  const box = $('lyricSmart');
+  box.replaceChildren();
+  for (const [val, label] of DISPLAY_IDLE) {
+    const on = (val === 'on') === !!store.data.smartLyrics;
+    const b = el('button', on ? 'on' : '', label);
+    b.onclick = () => {
+      if (on) return;
+      store.data.smartLyrics = val === 'on'; store.save();
+      /* what was found under the other rule may not be what this one picks */
+      lyricsCache.clear();
+      if (tab === 'lyrics') loadLyrics(true);
+      renderLyricSmart();
+    };
+    box.appendChild(b);
+  }
+}
+
 function renderLyricFonts() {
   fontLink('lyricFontPreview', LYRIC_FONTS);
   const box = $('lyricFontList');
@@ -5036,6 +5101,7 @@ function setDemoMode(on) {
 
 function openInfo() {
   renderKeys();
+  renderLyricSmart();
   renderLyricProviders();
   renderLyricFonts();
   renderWidgetOpts();

@@ -65,8 +65,10 @@ both off.
 
 **Lyrics** — time-synced where they exist, scrolling themselves and dimming what has passed.
 Where the timing goes down to the word, each word fills in as it is sung. Tap any line to
-jump to that moment. Sources are tried in order (reorder or turn them off under **Info →
-Lyrics**): [LyricsPlus](https://github.com/ibratabian17/lyricsplus) (word-by-word, from Apple
+jump to that moment. With **smart search** on (the default, under **Info → Lyrics**) every
+source is asked at once and the best kind wins: word-timed, then line-timed, then plain text,
+with your source order breaking ties. Off, the first source in your order with anything wins.
+The sources (reorder or turn them off in the same place): [LyricsPlus](https://github.com/ibratabian17/lyricsplus) (word-by-word, from Apple
 Music, Musixmatch and QQ Music), [LRCLIB](https://lrclib.net) (timed LRC), the lyrics YouTube
 Music itself shows (newer players only), then [lyrics.ovh](https://lyrics.ovh) as a
 plain-text backstop. The lyrics font is yours to pick there too, from ten display faces
