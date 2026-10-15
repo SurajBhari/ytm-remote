@@ -18,10 +18,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Roboto is YouTube Music's own typeface; the brief asks to match that UI. unslop-ignore -->
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-<!-- lyrics alone get a display face: at 38px, heavier and rounder than Roboto
-     reads from across a room. Scripts it lacks (Gurmukhi, Devanagari) fall
-     through to the system's own font for them. -->
-<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@700;800&display=swap" rel="stylesheet">
 <style>
 :root{
   /* YouTube Music surface ramp */
@@ -50,7 +46,9 @@
      surface the same way */
   --img-line:rgba(255,255,255,.1);
   --font:'Roboto',system-ui,Arial,sans-serif; /* unslop-ignore */
-  --font-lyric:'Figtree',var(--font);
+  /* set from Info -> Lyrics; see applyLyricFont() */
+  --font-lyric:var(--font);
+  --lyric-weight:700;
   /* white lyrics over a pale cover would vanish into it: a tight edge keeps the
      letters' outline, a soft spread lifts the line off whatever is behind */
   --lyric-shadow:drop-shadow(0 1px 1px rgba(0,0,0,.45)) drop-shadow(0 2px 10px rgba(0,0,0,.4));
@@ -367,7 +365,7 @@ body.idle-hide:has(#paneLyrics:not([hidden])) .side{flex-basis:40%}
 .lyric{
   display:block;width:100%;text-align:left;
   font-family:var(--font-lyric);
-  font-size:18px;line-height:1.45;font-weight:700;
+  font-size:18px;line-height:1.45;font-weight:var(--lyric-weight);
   /* a filter rather than text-shadow: the word-by-word fill paints the text
      with a clipped background, and text-shadow would land on top of it */
   filter:var(--lyric-shadow);
@@ -403,7 +401,7 @@ body.idle-hide:has(#paneLyrics:not([hidden])) .side{flex-basis:40%}
    duration so the centred line tracks the width change directly instead. */
 body.art-resizing .lyrics.synced{transition:none}
 .lyrics.synced .lyric{
-  font-size:clamp(23px,3.4vw,38px);line-height:1.24;font-weight:800;
+  font-size:clamp(23px,3.4vw,38px);line-height:1.24;font-weight:var(--lyric-weight);
   letter-spacing:-.01em;color:rgba(255,255,255,.34);
   margin:clamp(4px,1.1vh,12px) 0;cursor:pointer;
   opacity:0;transform:scale(.96);transform-origin:left center;pointer-events:none;
@@ -896,6 +894,8 @@ dialog[open]{animation:lift .24s cubic-bezier(.2,0,0,1) both}
   background:rgba(255,255,255,.08);color:var(--text-2);
 }
 .widget-opts button.on{background:var(--text);color:#030303}
+/* each font choice is written in its own face, so the button is the preview */
+#lyricFontList button{font-size:15px}
 @media(hover:hover) and (pointer:fine){.widget-opts button:not(.on):hover{background:rgba(255,255,255,.14)}}
 
 .lp-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--r-md);background:#181818}
@@ -1244,6 +1244,12 @@ body.offline .art-btn::after{content:none}
         wins. Turn a source off to skip it, or reorder to change who goes first.
       </div>
       <div id="lyricProviderList" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div class="label" style="margin-top:16px">Font</div>
+      <div class="hint" style="margin-bottom:8px">
+        The typeface for lyrics only; the rest of the page stays as it is.
+        Scripts a font lacks, like Gurmukhi or Devanagari, use your system's own.
+      </div>
+      <div class="widget-opts" id="lyricFontList"></div>
     </div>
 
     <div id="infoPaneWidget" role="tabpanel" hidden>
@@ -1290,7 +1296,7 @@ body.offline .art-btn::after{content:none}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, demoMode: false, idleHide: true, idleLine: true },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, lyricFont: 'Unbounded', demoMode: false, idleHide: true, idleLine: true },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
@@ -4883,6 +4889,58 @@ function renderLyricProviders() {
   });
 }
 
+/* ---------------- lyrics font ----------------
+   Lyrics are read from across a room, so they get a display face of their own,
+   picked in Info -> Lyrics. Each is drawn at the weight it was designed for --
+   several only come in one, and a browser's fake bold of those is a smear.
+   Only the chosen one is downloaded; the rest load while the picker is open. */
+const LYRIC_FONTS = [
+  { name: 'Roboto', weight: 700 },                                  // already on the page
+  { name: 'Unbounded', weight: 700, q: 'Unbounded:wght@700' },
+  { name: 'Bricolage Grotesque', weight: 800, q: 'Bricolage+Grotesque:opsz,wght@96,800' },
+  { name: 'Syne', weight: 800, q: 'Syne:wght@800' },
+  { name: 'Fraunces', weight: 800, q: 'Fraunces:opsz,wght@144,800' },
+  { name: 'DM Serif Display', weight: 400, q: 'DM+Serif+Display' },
+  { name: 'Anton', weight: 400, q: 'Anton' },
+  { name: 'Righteous', weight: 400, q: 'Righteous' },
+  { name: 'Nunito', weight: 900, q: 'Nunito:wght@900' },
+  { name: 'Space Grotesk', weight: 700, q: 'Space+Grotesk:wght@700' }
+];
+const lyricFont = () => LYRIC_FONTS.find(f => f.name === store.data.lyricFont) || LYRIC_FONTS[0];
+
+function fontLink(id, fonts) {
+  const want = fonts.filter(f => f.q);
+  if (!want.length) return;
+  const href = 'https://fonts.googleapis.com/css2?' + want.map(f => 'family=' + f.q).join('&') + '&display=swap';
+  let link = document.getElementById(id);
+  if (link && link.href === href) return;
+  if (!link) { link = document.createElement('link'); link.id = id; link.rel = 'stylesheet'; document.head.appendChild(link); }
+  link.href = href;
+}
+
+function applyLyricFont() {
+  const f = lyricFont();
+  fontLink('lyricFontLink', [f]);
+  document.documentElement.style.setProperty('--font-lyric', `'${f.name}',var(--font)`);
+  document.documentElement.style.setProperty('--lyric-weight', String(f.weight));
+  /* a wider or narrower face moves every line, so the focused one is re-centred */
+  if (lyricWrap) requestAnimationFrame(() => focusLyric(lyricIdx));
+}
+
+function renderLyricFonts() {
+  fontLink('lyricFontPreview', LYRIC_FONTS);
+  const box = $('lyricFontList');
+  box.replaceChildren();
+  const cur = lyricFont().name;
+  for (const f of LYRIC_FONTS) {
+    const b = el('button', f.name === cur ? 'on' : '', f.name);
+    b.style.fontFamily = `'${f.name}',var(--font)`;
+    b.style.fontWeight = String(f.weight);
+    b.onclick = () => { store.data.lyricFont = f.name; store.save(); applyLyricFont(); renderLyricFonts(); };
+    box.appendChild(b);
+  }
+}
+
 const INFO_TABS = ['Shortcuts', 'Lyrics', 'Widget', 'Display'];
 
 function selectInfoTab(name) {
@@ -4981,6 +5039,7 @@ function setDemoMode(on) {
 function openInfo() {
   renderKeys();
   renderLyricProviders();
+  renderLyricFonts();
   renderWidgetOpts();
   renderDisplayOpts();
   selectInfoTab('Shortcuts');
@@ -5197,6 +5256,7 @@ if (window.requestIdleCallback) requestIdleCallback(bakeDissolve); else setTimeo
 
 renderSong(); renderProgress(); renderTransport(); renderFullscreen(); renderConnection(); renderHistory(); renderRecent();
 applyBgAnim();
+applyLyricFont();
 if (!store.data.demoMode && !store.data.connections.length) { renderConns(); dlg.showModal(); }
 else connect();
 </script>

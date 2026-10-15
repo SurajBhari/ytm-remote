@@ -69,7 +69,9 @@ jump to that moment. Sources are tried in order (reorder or turn them off under 
 Lyrics**): [LyricsPlus](https://github.com/ibratabian17/lyricsplus) (word-by-word, from Apple
 Music, Musixmatch and QQ Music), [LRCLIB](https://lrclib.net) (timed LRC), the lyrics YouTube
 Music itself shows (newer players only), then [lyrics.ovh](https://lyrics.ovh) as a
-plain-text backstop. Candidates are ranked by track length, because the same title is often
+plain-text backstop. The lyrics font is yours to pick there too, from ten display faces
+(Unbounded by default); every line carries a drop shadow so it stays readable over pale
+covers. Candidates are ranked by track length, because the same title is often
 uploaded at several different durations and the wrong one drifts audibly.
 
 ![The Lyrics tab, the current line lifted out of the ones around it](screenshot-lyrics.png)
