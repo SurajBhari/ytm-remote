@@ -65,11 +65,27 @@ both off.
 
 **Lyrics** — time-synced where they exist, scrolling themselves and dimming what has passed.
 Tap any line to jump to that moment. Sources are tried in order and synced always wins over
-plain: [LRCLIB](https://lrclib.net) (timed LRC), then [lyrics.ovh](https://lyrics.ovh) as a
-plain-text backstop. Candidates are ranked by track length, because the same title is often
+plain: [LRCLIB](https://lrclib.net) (timed LRC), then the lyrics YouTube Music itself shows
+(newer players only), then [lyrics.ovh](https://lyrics.ovh) as a plain-text backstop. Candidates are ranked by track length, because the same title is often
 uploaded at several different durations and the wrong one drifts audibly.
 
 ![The Lyrics tab, the current line lifted out of the ones around it](screenshot-lyrics.png)
+
+### With a newer player
+
+Recent builds of the API Server plugin add endpoints for browsing and playing whole albums. The
+remote reads the player's own endpoint list (`/doc`) once per connection and shows each of
+these only when that player has it, so an older player just doesn't show them:
+
+- **Home** — your home feed, Explore, New releases, Charts, Moods & genres and Library. Open
+  any album, artist or playlist, play or shuffle it, put it next in the queue, or start a
+  radio from it. Search results for artists open here too.
+- **Related** and **Comments** tabs for the track that is playing, with Top / Newest sorting
+  for comments.
+- **Start radio** in Up next, and *Start radio* when you hold any track.
+- **Fullscreen on the player** — the screen button in the player bar toggles fullscreen on the
+  desktop app itself, which helps when it's on a TV. This is separate from the header's fullscreen
+  button, which only affects this page.
 
 ### Keyboard
 

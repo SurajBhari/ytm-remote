@@ -291,7 +291,9 @@ body.idle-hide:has(#paneLyrics:not([hidden])) .side{flex-basis:40%}
 
 /* ============ side pane ============ */
 .side{flex:1 1 56%;min-width:0;display:flex;flex-direction:column;min-height:0}
-.tabs{display:flex;gap:8px;flex:none;padding-bottom:8px}
+.tabs{display:flex;gap:8px;flex:none;padding-bottom:8px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none}
 .tab{
   display:inline-flex;align-items:center;justify-content:center;min-height:40px;
   color:var(--text-3);font-size:13px;font-weight:500;padding:0 12px;border-radius:var(--r-md);
@@ -496,6 +498,47 @@ body.art-resizing .lyrics.synced{transition:none}
 .empty{text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px;text-wrap:pretty}
 .empty strong{display:block;color:var(--text);font-size:15px;font-weight:500;margin-bottom:8px;text-wrap:balance}
 
+/* ---- browse: home, explore, library, album / artist / playlist pages ----
+   Cards scroll sideways in a shelf, the way the app lays them out; rows reuse
+   the queue's row; mood and genre buttons sit in a grid, each with the stripe
+   of colour the app gives it. */
+.shelf{display:flex;align-items:flex-start;gap:12px;overflow-x:auto;padding:4px 4px 8px;scroll-snap-type:x proximity;scrollbar-width:thin}
+.card{flex:none;width:144px;display:flex;flex-direction:column;text-align:left;scroll-snap-align:start;cursor:pointer;border-radius:var(--r-md);padding:0}
+.card.wide{width:224px}
+.card img{width:100%;aspect-ratio:1;border-radius:var(--r-md);object-fit:cover;background:#0f0f0f;outline:1px solid var(--img-line);outline-offset:-1px}
+.card.wide img{aspect-ratio:16/9}
+.card.round img{border-radius:50%}
+.card .t{margin-top:8px;font-size:13px;font-weight:500;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .s{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(hover:hover) and (pointer:fine){.card:hover .t{text-decoration:underline}}
+/* a finger swipes the shelf; the bar under it is only for a mouse */
+@media(pointer:coarse){.shelf{scrollbar-width:none}.shelf::-webkit-scrollbar{display:none}}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;padding:4px}
+.tile{min-height:44px;padding:0 12px;text-align:left;font-size:13px;font-weight:500;color:var(--text);background:var(--surface);border-radius:var(--r-md);border-left:6px solid var(--stripe,var(--text-3))}
+@media(hover:hover) and (pointer:fine){.tile:hover{background:var(--hover)}}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:0 0 8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips .txtbtn{flex:none}
+.bhead{display:flex;gap:16px;align-items:center;padding:4px 4px 8px}
+.bhead img{width:112px;height:112px;flex:none;border-radius:var(--r-md);object-fit:cover;background:#0f0f0f;outline:1px solid var(--img-line);outline-offset:-1px}
+.bhead.round img{border-radius:50%}
+.bhead .txt{min-width:0}
+.bhead h2{margin:0;font-size:20px;font-weight:700;text-wrap:balance}
+.bhead .s{font-size:13px;color:var(--text-2);margin-top:4px}
+.bacts{display:flex;gap:8px;flex-wrap:wrap;padding:0 4px 8px}
+.about{padding:4px;font-size:13px;line-height:1.5;color:var(--text-2);white-space:pre-line;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+.about.open{display:block}
+/* ---- comments ---- */
+.cmt{display:flex;gap:12px;padding:10px 8px}
+.cmt img{width:32px;height:32px;border-radius:50%;flex:none;background:#0f0f0f}
+.cmt .txt{min-width:0;flex:1}
+.cmt .who{font-size:12px;color:var(--text-2)}
+.cmt .who b{color:var(--text);font-weight:500}
+.cmt .body{font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px}
+.cmt .meta{font-size:12px;color:var(--text-3);margin-top:4px}
+/* the phone has Home in its bottom nav; the header button is for wider screens */
+@media(max-width:719px),(max-width:1000px) and (orientation:portrait){#btnHome{display:none}}
+
 /* ---- track change ----
    the name and the credits are two separate pieces of information, so they
    arrive 60ms apart rather than as one block appearing at once */
@@ -631,9 +674,10 @@ body.art-resizing .lyrics.synced{transition:none}
    shows the same text) and rises into place the moment the chrome fades --
    reading as the bar's own title relocating rather than a second copy
    appearing -- then stays there for as long as idle-hide holds. */
-.top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune{transition:opacity .6s ease}
+.top,.side>.tabs,#paneQueue,#paneSearch,#paneHome,#paneRelated,#paneComments,.bar,.nav,.now .actions,.lyr-tune{transition:opacity .6s ease}
 body.idle-hide .top,body.idle-hide .side>.tabs,
 body.idle-hide #paneQueue,body.idle-hide #paneSearch,
+body.idle-hide #paneHome,body.idle-hide #paneRelated,body.idle-hide #paneComments,
 body.idle-hide .bar,body.idle-hide .nav,body.idle-hide .now .actions,
 body.idle-hide .lyr-tune{opacity:0;pointer-events:none}
 .now-meta{opacity:0;transform:translateY(10px);transition:opacity .6s ease,transform .6s ease;pointer-events:none}
@@ -666,7 +710,7 @@ body.idle-hide,body.idle-hide *{cursor:none}
 body.idle-hide .idle-line{translate:0 0;opacity:1;transition:translate .6s ease,opacity 0s}
 body.no-idle-line .idle-line{display:none}
 @media(prefers-reduced-motion:reduce){
-  .top,.side>.tabs,#paneQueue,#paneSearch,.bar,.nav,.now .actions,.lyr-tune,.now-meta,.idle-line,body.idle-hide .idle-line{transition:none}
+  .top,.side>.tabs,#paneQueue,#paneSearch,#paneHome,#paneRelated,#paneComments,.bar,.nav,.now .actions,.lyr-tune,.now-meta,.idle-line,body.idle-hide .idle-line{transition:none}
 }
 
 /* ============ tablet and below ============ */
@@ -916,6 +960,9 @@ body.offline .art-btn::after{content:none}
     <span class="brand">YTM Remote</span>
     <span class="lamp" id="lamp"><i aria-hidden="true"></i><span id="lampText" role="status" aria-live="polite">Not connected</span></span>
     <span class="grow"></span>
+    <button class="ib small" id="btnHome" aria-label="Home" title="Home" hidden>
+      <svg viewBox="0 0 24 24"><path class="ln" d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg>
+    </button>
     <button class="ib small" id="btnSearch" aria-label="Search" title="Search">
       <svg viewBox="0 0 24 24"><path class="ln" d="M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13zM15.3 15.3 20.5 20.5M7.6 9.4a3.2 3.2 0 0 1 1.8-1.8"/></svg>
     </button>
@@ -970,12 +1017,15 @@ body.offline .art-btn::after{content:none}
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tabQueue" aria-selected="true" aria-controls="paneQueue">Up next</button>
         <button class="tab" role="tab" id="tabLyrics" aria-selected="false" aria-controls="paneLyrics">Lyrics</button>
+        <button class="tab" role="tab" id="tabRelated" aria-selected="false" aria-controls="paneRelated" hidden>Related</button>
+        <button class="tab" role="tab" id="tabComments" aria-selected="false" aria-controls="paneComments" hidden>Comments</button>
       </div>
 
       <div class="pane" id="paneQueue" role="tabpanel">
         <div class="pane-bar">
           <button class="txtbtn" id="bQueueRefresh">Refresh</button>
           <button class="txtbtn" id="bQueueClear">Clear queue</button>
+          <button class="txtbtn" id="bRadio" title="Replace the queue with a radio based on this track" hidden>Start radio</button>
           <span class="count" id="queueCount"></span>
         </div>
         <div id="queueList"><div class="empty"><strong>No player connected</strong>Add your YouTube Music player under Connections to see the queue.</div></div>
@@ -996,6 +1046,26 @@ body.offline .art-btn::after{content:none}
           <button class="txtbtn" id="bAddId">Play next</button>
         </div>
         <div id="searchList"><div class="empty"><strong>Search YouTube Music</strong>Anything you pick goes into the queue right after the current track.</div></div>
+      </div>
+
+      <!-- home, explore and library, and every album, artist and playlist page
+           opened from them; the chips pick a starting page, Back walks the rest -->
+      <div class="pane" id="paneHome" role="tabpanel" hidden>
+        <div class="chips" id="homeChips"></div>
+        <div id="homeBody"></div>
+      </div>
+
+      <div class="pane" id="paneRelated" role="tabpanel" hidden>
+        <div id="relatedBody"></div>
+      </div>
+
+      <div class="pane" id="paneComments" role="tabpanel" hidden>
+        <div class="pane-bar">
+          <button class="txtbtn on" id="bCmtTop" aria-pressed="true">Top</button>
+          <button class="txtbtn" id="bCmtNew" aria-pressed="false">Newest</button>
+          <span class="count" id="cmtCount"></span>
+        </div>
+        <div id="commentsBody"></div>
       </div>
     </section>
   </div>
@@ -1051,6 +1121,10 @@ body.offline .art-btn::after{content:none}
         <svg viewBox="0 0 24 24"><path class="ln" id="repeatIcon" d="M17 2.5l3 3-3 3M20 5.5H8a4 4 0 0 0-4 4v1M7 21.5l-3-3 3-3M4 18.5h12a4 4 0 0 0 4-4v-1"/></svg></button>
       <button class="ib small" id="bShuffle" aria-label="Shuffle" title="Shuffle (S)">
         <svg viewBox="0 0 24 24"><path class="ln" d="M3 6.5h2.5c5.5 0 7.5 11 13 11H21M3 17.5h2.5c2 0 3.4-1.5 4.6-3.4M13.9 9.9c1.2-1.9 2.6-3.4 4.6-3.4H21M18 3.5l3 3-3 3M18 14.5l3 3-3 3"/></svg></button>
+      <!-- fullscreen on the desktop player itself, for when it is on a TV;
+           the header's button is this page's own fullscreen -->
+      <button class="ib small" id="bPlayerFull" aria-label="Fullscreen on the player" aria-pressed="false" title="Fullscreen on the player" hidden>
+        <svg viewBox="0 0 24 24"><path class="ln" d="M3 5.5h18v11H3zM9 20.5h6M12 16.5v4M7.5 10.5V9h1.5M16.5 12v1.5H15"/></svg></button>
       <button class="ib small" id="bShare" aria-label="Share this track" title="Share">
         <svg viewBox="0 0 24 24"><path class="ln" d="M21 3 3 10.5l7 3 3 7.5zM10 13.5 21 3"/></svg></button>
     </div>
@@ -1061,6 +1135,8 @@ body.offline .art-btn::after{content:none}
   <nav class="nav" role="tablist" aria-label="Sections">
     <button role="tab" id="navPlayer" aria-selected="true">
       <svg viewBox="0 0 24 24"><path class="ln" d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5zM6.5 12A5.5 5.5 0 0 1 12 6.5"/></svg>Player</button>
+    <button role="tab" id="navHome" aria-selected="false" hidden>
+      <svg viewBox="0 0 24 24"><path class="ln" d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg>Home</button>
     <button role="tab" id="navQueue" aria-selected="false">
       <svg viewBox="0 0 24 24"><path class="ln" d="M3 6h11M3 11h11M3 16h6M17 18.5V5.5l4 1.5M17 18.5a1.75 1.75 0 1 1-3.5 0a1.75 1.75 0 1 1 3.5 0z"/></svg>Up next</button>
     <button role="tab" id="navLyrics" aria-selected="false">
@@ -1351,7 +1427,14 @@ const api = {
       });
     } finally { clearTimeout(to); }
     if (res.status === 401 || res.status === 403) { const e = new Error('Token rejected'); e.auth = true; throw e; }
-    if (!res.ok) throw new Error('Player returned ' + res.status);
+    if (!res.ok) {
+      /* the newer endpoints say what went wrong ("not ready to start playback"),
+         and that is worth more than the bare status */
+      let msg = 'Player returned ' + res.status;
+      try { const j = await res.json(); if (j && j.error) msg = j.error; } catch {}
+      const e = new Error(msg); e.status = res.status;
+      throw e;
+    }
     if (res.status === 204) return null;
     const text = await res.text();
     if (!text) return null;
@@ -1373,21 +1456,39 @@ const api = {
    publishes its own OpenAPI spec at /doc; a build too old to have one, or one
    that cannot be reached, supports none of them. Read once per connection. */
 let endpoints = new Set();
-let endpointsProbed = false;
+let endpointsProbed = false;   // asked on this connection
+let endpointsKnown = false;    // and answered, even if the answer was nothing
 async function probeEndpoints() {
   endpoints = new Set();
   const c = active();
   if (!c || store.data.demoMode) return;
+  const found = new Set();
   try {
     const res = await fetch(c.url.replace(/\/+$/, '') + '/doc', { mode: 'cors', cache: 'no-store' });
-    if (!res.ok) return;
-    const paths = (await res.json()).paths || {};
-    const found = new Set();
-    for (const p in paths) for (const m in paths[p]) found.add(m.toUpperCase() + ' ' + p);
-    if (active() === c) endpoints = found;
+    if (res.ok) {
+      const paths = (await res.json()).paths || {};
+      for (const p in paths) for (const m in paths[p]) found.add(m.toUpperCase() + ' ' + p);
+    }
   } catch {}
+  if (active() !== c) return;
+  endpoints = found;
+  endpointsKnown = true;
+  applyEndpoints();
 }
 const supports = (method, path) => endpoints.has(method + ' ' + path);
+/* what each newer feature needs from the player, asked by name where it is used */
+const has = {
+  home: () => supports('GET', '/api/v1/home') && supports('POST', '/api/v1/browse'),
+  browse: () => supports('POST', '/api/v1/browse'),
+  playSong: () => supports('POST', '/api/v1/play-song'),
+  playList: () => supports('POST', '/api/v1/play-playlist'),
+  queueList: () => supports('POST', '/api/v1/queue/playlist'),
+  radio: () => supports('POST', '/api/v1/start-radio'),
+  lyrics: () => supports('GET', '/api/v1/song/lyrics'),
+  related: () => supports('GET', '/api/v1/song/related'),
+  comments: () => supports('GET', '/api/v1/song/comments'),
+  playerFull: () => supports('GET', '/api/v1/fullscreen') && supports('POST', '/api/v1/fullscreen')
+};
 
 /* ---------------- helpers ---------------- */
 const $ = (id) => document.getElementById(id);
@@ -1521,7 +1622,7 @@ async function themeFromArt(url) {
 let connected = false;
 const state = {
   song: null, paused: true, duration: 0, elapsed: 0, at: 0,
-  volume: 0, muted: false, shuffle: false, repeat: 'NONE', like: null
+  volume: 0, muted: false, shuffle: false, repeat: 'NONE', like: null, playerFull: false
 };
 let scrubbing = false;
 let volDragging = false;
@@ -1591,7 +1692,7 @@ function handleErr(e) {
    quietly did nothing. Disabled rather than merely dimmed, so the keyboard and
    assistive tech are told the same thing the dimming says. */
 const LIVE_CONTROLS = ['bPlay', 'bPrev', 'bNext', 'bLike', 'bDislike', 'bShuffle',
-                       'bRepeat', 'bMute', 'artToggle', 'miniOpen', 'barTitle', 'vol'];
+                       'bRepeat', 'bMute', 'artToggle', 'miniOpen', 'barTitle', 'vol', 'bPlayerFull'];
 
 function renderConnection() {
   const ok = connected && !!active();
@@ -1605,7 +1706,12 @@ async function act(fn, okMsg) {
     if (okMsg) toast(okMsg);
     clearTimeout(act._t);
     act._t = setTimeout(() => { pollSong(); pollAux(); }, 160);
-  } catch (e) { handleErr(e); }
+  } catch (e) {
+    /* a player that answered with an error is still there, so it is told as
+       what went wrong rather than as the connection dropping */
+    if (e && e.status && !e.auth) toast(e.message, true);
+    else handleErr(e);
+  }
 }
 
 /* ---------------- render ----------------
@@ -2037,6 +2143,8 @@ function renderTransport() {
     ? 'M17 2.5l3 3-3 3M20 5.5H8a4 4 0 0 0-4 4v1M7 21.5l-3-3 3-3M4 18.5h12a4 4 0 0 0 4-4v-1M10.8 10.6l1.7-1.1v5.5'
     : 'M17 2.5l3 3-3 3M20 5.5H8a4 4 0 0 0-4 4v1M7 21.5l-3-3 3-3M4 18.5h12a4 4 0 0 0 4-4v-1');
   $('bMute').classList.toggle('on', !!state.muted);
+  $('bPlayerFull').classList.toggle('on', !!state.playerFull);
+  $('bPlayerFull').setAttribute('aria-pressed', String(!!state.playerFull));
   $('volIcon').setAttribute('d', state.muted || state.volume === 0
     ? 'M3.5 9.5h3l4.5-4v13l-4.5-4h-3zM15.5 9.5l5 5M20.5 9.5l-5 5'
     : 'M3.5 9.5h3l4.5-4v13l-4.5-4h-3zM15 9.5a3.5 3.5 0 0 1 0 5M17.8 6.8a7.5 7.5 0 0 1 0 10.4');
@@ -2089,6 +2197,8 @@ async function pollSong() {
       renderSong();
       if (tab === 'queue') loadQueue(true);
       if (tab === 'lyrics') loadLyrics();
+      if (tab === 'related') loadRelated();
+      if (tab === 'comments') loadComments();
     }
     renderProgress(); renderTransport();
   } catch (e) { handleErr(e); }
@@ -2097,12 +2207,14 @@ async function pollSong() {
 async function pollAux() {
   if (!active()) return;
   try {
-    const [like, vol, sh, rep] = await Promise.all([
+    const [like, vol, sh, rep, full] = await Promise.all([
       api.get('/api/v1/like-state').catch(() => null),
       api.get('/api/v1/volume').catch(() => null),
       api.get('/api/v1/shuffle').catch(() => null),
-      api.get('/api/v1/repeat-mode').catch(() => null)
+      api.get('/api/v1/repeat-mode').catch(() => null),
+      has.playerFull() ? api.get('/api/v1/fullscreen').catch(() => null) : null
     ]);
+    if (full) state.playerFull = !!full.state;
     if (like) state.like = like.state;
     if (vol) {
       /* older plugin builds leave isMuted off the payload, and coercing that
@@ -2175,6 +2287,8 @@ function openSocket() {
           renderSong();
           if (tab === 'queue') loadQueue(true);
           if (tab === 'lyrics') loadLyrics();
+          if (tab === 'related') loadRelated();
+          if (tab === 'comments') loadComments();
         } else if (m.song.imageSrc && m.song.imageSrc !== artUrl) {
           renderSong();
         }
@@ -2326,7 +2440,11 @@ const ICON = {
   up: 'M6 15l6-6 6 6', down: 'M6 9l6 6 6-6',
   close: 'M6 6l12 12M18 6 6 18',
   next: 'M3 6h11M3 11h11M3 16h6M17 18.5V5.5l4 1.5M17 18.5a1.75 1.75 0 1 1-3.5 0a1.75 1.75 0 1 1 3.5 0z',
-  open: 'M14 4h6v6M20 4l-9 9M19 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4'
+  open: 'M14 4h6v6M20 4l-9 9M19 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4',
+  play: 'M8 5.5v13l10.5-6.5z',
+  shuffle: 'M3 6.5h2.5c5.5 0 7.5 11 13 11H21M3 17.5h2.5c2 0 3.4-1.5 4.6-3.4M13.9 9.9c1.2-1.9 2.6-3.4 4.6-3.4H21M18 3.5l3 3-3 3M18 14.5l3 3-3 3',
+  radio: 'M12 10.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3zM8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8',
+  back: 'M15 5l-7 7 7 7'
 };
 
 function queueRow(t, i) {
@@ -2566,10 +2684,24 @@ async function fetchFromLyricsOvh(song, ctx) {
   return null;
 }
 
+/* The lyrics YouTube Music itself shows, asked of the player by video id, so
+   there is no title matching to get wrong -- but they come untimed. */
+async function fetchFromPlayer(song) {
+  if (!song.videoId) return null;
+  try {
+    const j = await api.get('/api/v1/song/lyrics?videoId=' + encodeURIComponent(song.videoId));
+    if (j && j.lyrics && j.lyrics.trim()) {
+      return { synced: false, lines: null, plain: j.lyrics.trim(), note: '' };
+    }
+  } catch {}
+  return null;
+}
+
 /* the Lyrics tab in the Info panel lists these in whatever order the user has
    set, and skips whichever are turned off -- see lyricProviderPrefs() */
 const LYRIC_PROVIDERS = {
   lrclib: { label: 'LRCLIB', hint: 'Timed lyrics when a matching upload exists', fetch: fetchFromLRCLIB },
+  ytmusic: { label: 'YouTube Music', hint: 'The lyrics the player shows, no timing', fetch: fetchFromPlayer, needs: () => has.lyrics() },
   lyricsovh: { label: 'Lyrics.ovh', hint: 'Plain text only, no timing', fetch: fetchFromLyricsOvh }
 };
 
@@ -2577,7 +2709,7 @@ async function fetchLyrics(song, ctx) {
   for (const p of lyricProviderPrefs()) {
     if (!p.on) continue;
     const provider = LYRIC_PROVIDERS[p.id];
-    if (!provider) continue;
+    if (!provider || (provider.needs && !provider.needs())) continue;
     let hit = null;
     try { hit = await provider.fetch(song, ctx); } catch {}
     if (hit && (hit.synced || hit.plain)) return hit;
@@ -2609,6 +2741,7 @@ async function prefetchNextLyrics() {
     /* the queue carries a byline where the player carries an artist, and on
        some rows that byline is "Artist • Album • 3:21" */
     const res = await fetchLyrics({
+      videoId: next.videoId,
       title: next.title,
       artist: (next.by || '').split('•')[0],
       songDuration: durSecs(next.dur)
@@ -2653,7 +2786,7 @@ async function loadLyrics(force) {
   }
   if (lyricFor !== s.videoId) return;
   prefetchNext();
-  if (!res) return lyricsMessage('No lyrics found', 'Nothing matched this track on LRCLIB or lyrics.ovh.');
+  if (!res) return lyricsMessage('No lyrics found', 'None of the lyrics sources turned on under Info → Lyrics had this track.');
   renderLyrics(res);
 }
 
@@ -2877,11 +3010,17 @@ function searchRow(t) {
        Queueing is still there, on the button and under a hold. */
     const queue = () => act(() => queueNext(t.videoId), 'Playing next: ' + t.title);
     go = () => act(() => playNow(t.videoId), 'Playing: ' + t.title);
-    longPress(row, () => rowMenu(t.title, [['Play now', go], ['Play next', queue]]));
+    longPress(row, () => rowMenu(t.title, trackMenu(t, go, queue)));
     b.title = 'Play next';
     b.setAttribute('aria-label', 'Play next: ' + t.title);
     b.appendChild(svg(ICON.next));
     b.onclick = (e) => { e.stopPropagation(); queue(); };
+  } else if (has.browse()) {
+    go = () => openPage({ browseId: t.browseId });
+    b.title = 'Open';
+    b.setAttribute('aria-label', 'Open ' + t.title);
+    b.appendChild(svg(ICON.open));
+    b.onclick = (e) => { e.stopPropagation(); go(); };
   } else {
     /* nothing here can put an artist on the queue, so the row offers what it
        can instead of looking like a track that refuses to play */
@@ -2899,6 +3038,531 @@ function searchRow(t) {
   row.appendChild(acts);
   return row;
 }
+
+/* The menu a held track offers, wherever it is listed. A radio is only on it
+   when the player can start one. */
+function trackMenu(t, play, queue) {
+  const items = [['Play now', play], ['Play next', queue]];
+  if (has.radio()) items.push(['Start radio', () => act(() => api.post('/api/v1/start-radio', { videoId: t.videoId }), 'Radio started')]);
+  return items;
+}
+
+/* ---------------- browse ----------------
+   Home, Explore, Library and every album, artist and playlist page arrive as
+   YouTube Music's own raw page, the same as search. Only a few renderers on it
+   hold anything worth showing, so each page is read into shelves of plain
+   items -- a card, a row or a mood button -- and drawn by one renderer.
+   Anything else on the page is skipped rather than guessed at. */
+const runsText = (o) => ((o && o.runs) || []).map(x => x.text).join('');
+const dots = (t) => (t || '').replace(/\s*•\s*/g, ' · ');
+/* the smallest picture at least `px` wide, so a list row does not pull a
+   544px cover and a card does not stretch a 60px one */
+function thumbOf(node, px) {
+  const list = collect(node, 'thumbnails', [])[0] || [];
+  return (list.find(x => (x.width || 0) >= px) || list[list.length - 1] || {}).url || '';
+}
+/* the pattern queue/playlist accepts; anything else would be a 400 */
+const QUEUEABLE = /^(?:(?:PL|UU|FL|RD|OLAK5uy_)[A-Za-z0-9_-]+|WL|LL|LM)$/;
+
+function endpointOf(nav) {
+  const w = nav && nav.watchEndpoint, b = nav && nav.browseEndpoint, wp = nav && nav.watchPlaylistEndpoint;
+  const cfg = b && b.browseEndpointContextSupportedConfigs && b.browseEndpointContextSupportedConfigs.browseEndpointContextMusicConfig;
+  return {
+    videoId: (w && w.videoId) || null,
+    playlistId: (w && w.playlistId) || (wp && wp.playlistId) || null,
+    browseId: (b && b.browseId) || null,
+    params: (b && b.params) || null,
+    pageType: (cfg && cfg.pageType) || ''
+  };
+}
+
+function cardItem(r) {
+  const it = endpointOf(r.navigationEndpoint);
+  const play = collect(r.thumbnailOverlay, 'watchPlaylistEndpoint', [])[0];
+  it.kind = 'card';
+  it.title = runsText(r.title) || 'Untitled';
+  it.sub = dots(runsText(r.subtitle));
+  it.thumb = thumbOf(r.thumbnailRenderer, 220);
+  it.wide = /16_9/.test(r.aspectRatio || '');
+  it.round = it.pageType === 'MUSIC_PAGE_TYPE_ARTIST';
+  /* what Play on an album or playlist card plays */
+  it.listId = (play && play.playlistId) || (it.browseId && it.browseId.startsWith('VL') ? it.browseId.slice(2) : null);
+  return it;
+}
+
+function rowItem(r) {
+  const col = (c, key) => runsText(c[key] && c[key].text);
+  const cols = (r.flexColumns || []).map(c => col(c, 'musicResponsiveListItemFlexColumnRenderer'));
+  const fixed = (r.fixedColumns || []).map(c => col(c, 'musicResponsiveListItemFixedColumnRenderer'));
+  const watch = collect(r.overlay, 'watchEndpoint', [])[0];
+  const it = endpointOf(r.navigationEndpoint);
+  it.kind = 'row';
+  it.videoId = (r.playlistItemData && r.playlistItemData.videoId) || (watch && watch.videoId) || it.videoId;
+  if (it.videoId) it.browseId = null;
+  else if (!it.browseId) Object.assign(it, endpointOf({ browseEndpoint: collect(r, 'browseEndpoint', [])[0] }));
+  if (watch && watch.playlistId) it.playlistId = watch.playlistId;
+  it.title = cols[0] || 'Untitled';
+  it.sub = dots(cols.slice(1).filter(Boolean).join(' · '));
+  it.dur = fixed[0] || '';
+  it.thumb = thumbOf(r.thumbnail, 60);
+  it.round = it.pageType === 'MUSIC_PAGE_TYPE_ARTIST';
+  return it;
+}
+
+function tileItem(r) {
+  const it = endpointOf(r.clickCommand);
+  it.kind = 'tile';
+  it.title = runsText(r.buttonText);
+  const c = r.solid && r.solid.leftStripeColor;
+  /* the colour arrives as an ARGB integer */
+  it.stripe = typeof c === 'number' ? '#' + (c & 0xffffff).toString(16).padStart(6, '0') : '';
+  return it;
+}
+
+function readItems(list) {
+  const out = [];
+  for (const n of list || []) {
+    if (n.musicTwoRowItemRenderer) out.push(cardItem(n.musicTwoRowItemRenderer));
+    else if (n.musicResponsiveListItemRenderer) out.push(rowItem(n.musicResponsiveListItemRenderer));
+    else if (n.musicNavigationButtonRenderer) out.push(tileItem(n.musicNavigationButtonRenderer));
+  }
+  return out.filter(i => i.videoId || i.browseId);
+}
+
+const SHELF_LISTS = ['musicShelfRenderer', 'musicPlaylistShelfRenderer', 'musicShelfContinuation', 'musicPlaylistShelfContinuation'];
+function readShelves(data) {
+  const shelves = [];
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    for (const k of Object.keys(n)) {
+      const v = n[k];
+      if (k === 'musicCarouselShelfRenderer') {
+        const h = v.header && v.header.musicCarouselShelfBasicHeaderRenderer;
+        shelves.push({ title: h ? runsText(h.title) : '', items: readItems(v.contents) });
+      } else if (SHELF_LISTS.includes(k)) {
+        shelves.push({ title: runsText(v.title), items: readItems(v.contents) });
+      } else if (k === 'gridRenderer' || k === 'gridContinuation') {
+        const h = v.header && v.header.gridHeaderRenderer;
+        shelves.push({ title: h ? runsText(h.title) : '', items: readItems(v.items) });
+      } else if (k === 'musicDescriptionShelfRenderer') {
+        shelves.push({ title: runsText(v.header), text: runsText(v.description) });
+      } else if (k !== 'musicResponsiveHeaderRenderer' && k !== 'responseContext' && k !== 'frameworkUpdates') {
+        walk(v);
+      }
+    }
+  };
+  walk(data);
+  return shelves.filter(sh => (sh.items && sh.items.length) || sh.text);
+}
+
+function continuationOf(data) {
+  const c = collect(data, 'nextContinuationData', [])[0];
+  return (c && c.continuation) || null;
+}
+
+/* The top of an album, playlist or artist page: its cover and name, and the
+   ids its Play, Shuffle and Radio buttons start from. */
+function readHeader(data, browseId) {
+  const h = collect(data, 'musicResponsiveHeaderRenderer', [])[0];
+  if (h) {
+    const m = /[?&]list=([^&]+)/.exec(collect(data, 'urlCanonical', [])[0] || '');
+    return {
+      title: runsText(h.title),
+      sub: dots([runsText(h.straplineTextOne), runsText(h.subtitle), runsText(h.secondSubtitle)].filter(Boolean).join(' · ')),
+      thumb: thumbOf(h.thumbnail, 220),
+      listId: m ? decodeURIComponent(m[1]) : (browseId.startsWith('VL') ? browseId.slice(2) : null)
+    };
+  }
+  const a = data && data.header && data.header.musicImmersiveHeaderRenderer;
+  if (a) {
+    const watch = (b) => collect(b, 'watchEndpoint', [])[0] || null;
+    return {
+      title: runsText(a.title), sub: runsText(a.monthlyListenerCount), thumb: thumbOf(a.thumbnail, 220), round: true,
+      shuffle: watch(a.playButton), mix: watch(a.startRadioButton)
+    };
+  }
+  const t = collect(data && data.header, 'title', [])[0];
+  return t ? { title: runsText(t) } : null;
+}
+
+/* Playing from a page goes the way the app goes: a track on an album or
+   playlist plays that list from there, anything else plays with the radio the
+   app would have attached to it. Without play-song, the old way in -- insert
+   it next and skip -- still works. */
+function playItem(it, listId) {
+  if (listId && has.playList()) return act(() => api.post('/api/v1/play-playlist', { playlistId: listId, videoId: it.videoId }), 'Playing: ' + it.title);
+  if (has.playSong()) {
+    const body = { videoId: it.videoId };
+    if (it.playlistId) body.playlistId = it.playlistId;
+    return act(() => api.post('/api/v1/play-song', body), 'Playing: ' + it.title);
+  }
+  return act(() => playNow(it.videoId), 'Playing: ' + it.title);
+}
+
+const playList = (listId, title, shuffle) =>
+  act(() => api.post('/api/v1/play-playlist', { playlistId: listId, shuffle: !!shuffle }), (shuffle ? 'Shuffling: ' : 'Playing: ') + title);
+const queueList = (listId, title) =>
+  act(() => api.post('/api/v1/queue/playlist', { playlistId: listId, insertPosition: 'INSERT_AFTER_CURRENT_VIDEO' }), 'Playing next: ' + title);
+const radioFromList = (listId, title) =>
+  act(() => api.post('/api/v1/start-radio', { playlistId: listId }), 'Radio started: ' + title);
+
+/* everything a whole album or playlist can be asked to do, as far as this
+   player allows */
+function listActions(listId, title) {
+  const out = [];
+  if (!listId) return out;
+  if (has.playList()) out.push(['Play', ICON.play, () => playList(listId, title)], ['Shuffle', ICON.shuffle, () => playList(listId, title, true)]);
+  if (has.queueList() && QUEUEABLE.test(listId)) out.push(['Play next', ICON.next, () => queueList(listId, title)]);
+  if (has.radio()) out.push(['Radio', ICON.radio, () => radioFromList(listId, title)]);
+  return out;
+}
+
+function openItem(it, listId) {
+  if (it.videoId) return playItem(it, listId);
+  openPage({ browseId: it.browseId, params: it.params, title: it.title });
+}
+
+function holdItem(node, it, listId) {
+  longPress(node, () => {
+    if (it.videoId) return rowMenu(it.title, trackMenu(it, () => playItem(it, listId), () => act(() => queueNext(it.videoId), 'Playing next: ' + it.title)));
+    const items = [['Open', () => openItem(it)]];
+    for (const [label, , run] of listActions(it.listId, it.title)) items.push([label, run]);
+    rowMenu(it.title, items);
+  });
+  /* the press that opened the menu must not also count as a tap */
+  node.onclick = () => { if (!node._held || performance.now() - node._held > 700) openItem(it, listId); };
+}
+
+function browseCard(it) {
+  const b = el('button', 'card' + (it.wide ? ' wide' : '') + (it.round ? ' round' : ''));
+  b.type = 'button';
+  const im = el('img'); im.src = it.thumb || BLANK; im.alt = ''; im.loading = 'lazy';
+  b.append(im, el('div', 't', it.title), el('div', 's', it.sub));
+  holdItem(b, it);
+  return b;
+}
+
+function browseRow(it, listId) {
+  const row = el('div', 'row');
+  if (it.thumb) {
+    const im = el('img'); im.src = it.thumb; im.alt = ''; im.loading = 'lazy';
+    if (it.round) im.style.borderRadius = '50%';
+    row.appendChild(im);
+  }
+  const txt = el('div', 'txt');
+  txt.append(el('div', 't', it.title), el('div', 's', it.sub));
+  row.appendChild(txt);
+  if (it.dur) row.appendChild(el('span', 'dur', it.dur));
+  const acts = el('div', 'acts');
+  const b = el('button');
+  if (it.videoId) {
+    b.title = 'Play next'; b.setAttribute('aria-label', 'Play next: ' + it.title);
+    b.appendChild(svg(ICON.next));
+    b.onclick = (e) => { e.stopPropagation(); act(() => queueNext(it.videoId), 'Playing next: ' + it.title); };
+  } else {
+    b.title = 'Open'; b.setAttribute('aria-label', 'Open ' + it.title);
+    b.appendChild(svg(ICON.open));
+    b.onclick = (e) => { e.stopPropagation(); openItem(it); };
+  }
+  acts.appendChild(b);
+  row.appendChild(acts);
+  holdItem(row, it, listId);
+  return row;
+}
+
+function browseTile(it) {
+  const b = el('button', 'tile', it.title);
+  b.type = 'button';
+  if (it.stripe) b.style.setProperty('--stripe', it.stripe);
+  b.onclick = () => openItem(it);
+  return b;
+}
+
+/* One shelf: cards scroll sideways, rows list down, mood buttons tile. A list
+   of tracks on an album or playlist page plays as that list. */
+function renderShelf(sh, listId) {
+  const frag = document.createDocumentFragment();
+  if (sh.title) {
+    const head = el('div', 'sec');
+    head.appendChild(el('h3', null, sh.title));
+    frag.appendChild(head);
+  }
+  if (sh.text) {
+    const p = el('div', 'about', sh.text);
+    p.onclick = () => p.classList.toggle('open');
+    frag.appendChild(p);
+    return frag;
+  }
+  const kind = sh.items[0].kind;
+  if (kind === 'card') {
+    const box = el('div', 'shelf');
+    for (const it of sh.items) box.appendChild(it.kind === 'card' ? browseCard(it) : browseRow(it, listId));
+    frag.appendChild(box);
+  } else if (kind === 'tile') {
+    const box = el('div', 'tiles');
+    for (const it of sh.items) box.appendChild(browseTile(it));
+    frag.appendChild(box);
+  } else {
+    for (const it of sh.items) frag.appendChild(it.kind === 'card' ? browseCard(it) : browseRow(it, listId));
+  }
+  return frag;
+}
+
+function headerNode(h) {
+  const frag = document.createDocumentFragment();
+  if (!h || !h.title) return frag;
+  const head = el('div', 'bhead' + (h.round ? ' round' : ''));
+  if (h.thumb) { const im = el('img'); im.src = h.thumb; im.alt = ''; head.appendChild(im); }
+  const txt = el('div', 'txt');
+  txt.appendChild(el('h2', null, h.title));
+  if (h.sub) txt.appendChild(el('div', 's', h.sub));
+  head.appendChild(txt);
+  frag.appendChild(head);
+  const acts = listActions(h.listId, h.title);
+  if (has.playList()) {
+    /* an artist's own Shuffle and Mix are playlists the app built for them */
+    if (h.shuffle && h.shuffle.playlistId) acts.push(['Shuffle', ICON.shuffle, () => act(() => api.post('/api/v1/play-playlist', { playlistId: h.shuffle.playlistId, videoId: h.shuffle.videoId, shuffle: true }), 'Shuffling: ' + h.title)]);
+    if (h.mix && h.mix.playlistId) acts.push(['Mix', ICON.radio, () => act(() => api.post('/api/v1/play-playlist', { playlistId: h.mix.playlistId, videoId: h.mix.videoId }), 'Playing: ' + h.title + ' mix')]);
+  }
+  if (acts.length) {
+    const row = el('div', 'bacts');
+    for (const [label, icon, run] of acts) {
+      const b = el('button', 'chip-btn');
+      b.type = 'button';
+      b.append(svg(icon), document.createTextNode(label));
+      b.onclick = run;
+      row.appendChild(b);
+    }
+    frag.appendChild(row);
+  }
+  return frag;
+}
+
+/* Starting points, as the app has them. Home is its own endpoint; the rest
+   are browse pages by id. */
+const HOME_ROOTS = [
+  { key: 'home', label: 'Home' },
+  { key: 'FEmusic_explore', label: 'Explore' },
+  { key: 'FEmusic_new_releases', label: 'New releases' },
+  { key: 'FEmusic_charts', label: 'Charts' },
+  { key: 'FEmusic_moods_and_genres', label: 'Moods & genres' },
+  { key: 'FEmusic_library_landing', label: 'Library' }
+];
+/* Each page keeps the node it was drawn into and where it was scrolled to,
+   so Back is instant and lands where you left it. */
+let pages = [];
+let homeRoot = 'home';
+let pageSeq = 0;
+
+function fetchPage(pg, continuation) {
+  if (pg.browseId === 'home') {
+    return api.get('/api/v1/home' + (continuation ? '?continuation=' + encodeURIComponent(continuation) : ''));
+  }
+  const body = { browseId: pg.browseId };
+  if (pg.params) body.params = pg.params;
+  if (continuation) body.continuation = continuation;
+  return api.post('/api/v1/browse', body);
+}
+
+function renderChips() {
+  const box = $('homeChips');
+  box.replaceChildren();
+  for (const r of HOME_ROOTS) {
+    const b = el('button', 'txtbtn' + (r.key === homeRoot && pages.length <= 1 ? ' on' : ''), r.label);
+    b.type = 'button';
+    b.onclick = () => openRoot(r.key);
+    box.appendChild(b);
+  }
+}
+
+function showPage() {
+  const pg = pages[pages.length - 1];
+  renderChips();
+  $('homeBody').replaceChildren(pg.node);
+  $('paneHome').scrollTop = pg.scroll || 0;
+}
+
+/* Loads one page, or the next part of it, into the page's node. A newer
+   navigation that lands while this one is in the air takes the pane, and this
+   one quietly gives up. */
+async function loadPage(pg, continuation) {
+  const mine = pg.seq;
+  const more = pg.node.querySelector('.sec-more.load');
+  if (more) more.replaceChildren(el('span', 'count', 'Loading…'));
+  else if (!continuation) pg.node.replaceChildren(el('div', 'empty', 'Loading…'));
+  let data;
+  try { data = await fetchPage(pg, continuation); }
+  catch (e) {
+    if (mine !== pg.seq) return;
+    if (!e.status) handleErr(e);
+    const msg = el('div', 'empty');
+    msg.appendChild(el('strong', null, 'Could not load this page'));
+    msg.appendChild(document.createTextNode(e.status ? e.message : 'Check the player connection.'));
+    if (more) more.replaceChildren(msg); else pg.node.replaceChildren(msg);
+    return;
+  }
+  if (mine !== pg.seq) return;
+  if (more) more.remove();
+  if (!continuation) {
+    pg.node.replaceChildren();
+    if (pages.indexOf(pg) > 0) {
+      const back = el('button', 'txtbtn');
+      back.type = 'button';
+      back.append(svg(ICON.back, 18), document.createTextNode('Back'));
+      back.onclick = goBack;
+      pg.node.appendChild(back);
+    }
+    pg.header = readHeader(data, pg.browseId);
+    pg.node.appendChild(headerNode(pg.header));
+  }
+  const listId = pg.header && pg.header.listId;
+  const shelves = readShelves(data);
+  for (const sh of shelves) pg.node.appendChild(renderShelf(sh, listId));
+  if (!continuation && !shelves.length) pg.node.appendChild(el('div', 'empty', 'Nothing on this page.'));
+  const next = continuationOf(data);
+  if (next && next !== continuation && shelves.length) {
+    const wrap = el('div', 'sec-more load');
+    const b = el('button', 'txtbtn', 'Load more');
+    b.type = 'button';
+    b.onclick = () => loadPage(pg, next);
+    wrap.appendChild(b);
+    pg.node.appendChild(wrap);
+  }
+}
+
+function pushPage(spec) {
+  const cur = pages[pages.length - 1];
+  if (cur) cur.scroll = $('paneHome').scrollTop;
+  const pg = Object.assign({ node: el('div'), seq: ++pageSeq, scroll: 0 }, spec);
+  pages.push(pg);
+  showPage();
+  loadPage(pg);
+}
+
+function openRoot(key) {
+  homeRoot = key;
+  pages = [];
+  pushPage({ browseId: key });
+}
+
+/* from anywhere -- a search result, a related artist -- into the Home pane */
+function openPage(spec) {
+  if (!has.browse()) return;
+  if (!pages.length) openRoot(homeRoot);
+  if (tab !== 'home') { if (stacked.matches) setView('home'); else setTab('home'); }
+  pushPage(spec);
+}
+
+function goBack() {
+  if (pages.length < 2) return;
+  pages.pop();
+  showPage();
+}
+
+function showHome() {
+  if (!has.home()) return;
+  if (!pages.length) openRoot(homeRoot);
+  else showPage();
+}
+
+/* ---------------- related ----------------
+   The app's Related tab for whatever is playing: similar songs, playlists,
+   artists and a word about the artist. Same shelves as Home. */
+let relatedFor = null;
+async function loadRelated() {
+  const box = $('relatedBody');
+  const s = state.song;
+  if (!s || !s.videoId) { relatedFor = null; return box.replaceChildren(el('div', 'empty', 'Play a track to see what is related to it.')); }
+  if (relatedFor === s.videoId) return;
+  relatedFor = s.videoId;
+  box.replaceChildren(el('div', 'empty', 'Loading…'));
+  let data;
+  try { data = await api.get('/api/v1/song/related?videoId=' + encodeURIComponent(s.videoId)); }
+  catch (e) {
+    if (relatedFor !== s.videoId) return;
+    relatedFor = null;
+    if (!e.status) handleErr(e);
+    return box.replaceChildren(el('div', 'empty', e.status ? e.message : 'Could not reach the player.'));
+  }
+  if (relatedFor !== s.videoId) return;
+  const shelves = data ? readShelves(data) : [];
+  if (!shelves.length) return box.replaceChildren(el('div', 'empty', 'Nothing related to this track.'));
+  const frag = document.createDocumentFragment();
+  for (const sh of shelves) frag.appendChild(renderShelf(sh));
+  box.replaceChildren(frag);
+  $('paneRelated').scrollTop = 0;
+}
+
+/* ---------------- comments ---------------- */
+let commentsFor = null, commentSort = 'top', commentSeq = 0;
+
+function commentNode(c) {
+  const row = el('div', 'cmt');
+  const im = el('img'); im.alt = ''; im.loading = 'lazy';
+  im.src = safeUrl(c.authorThumbnail) || BLANK;
+  row.appendChild(im);
+  const txt = el('div', 'txt');
+  const who = el('div', 'who');
+  who.appendChild(el('b', null, c.author || 'Someone'));
+  const tags = [c.isPinned && 'Pinned', c.isCreator && 'Artist', c.publishedTime].filter(Boolean);
+  if (tags.length) who.appendChild(document.createTextNode(' · ' + tags.join(' · ')));
+  txt.appendChild(who);
+  txt.appendChild(el('div', 'body', c.text || ''));
+  const meta = [c.likeCount && c.likeCount !== '0' && c.likeCount + ' likes', c.replyCount && c.replyCount + ' replies'].filter(Boolean);
+  if (meta.length) txt.appendChild(el('div', 'meta', meta.join(' · ')));
+  row.appendChild(txt);
+  return row;
+}
+
+async function loadComments(force, continuation) {
+  const box = $('commentsBody');
+  const s = state.song;
+  if (!s || !s.videoId) { commentsFor = null; $('cmtCount').textContent = ''; return box.replaceChildren(el('div', 'empty', 'Play a track to read its comments.')); }
+  if (!force && !continuation && commentsFor === s.videoId) return;
+  commentsFor = s.videoId;
+  const mine = ++commentSeq;
+  const more = box.querySelector('.sec-more');
+  if (continuation && more) more.replaceChildren(el('span', 'count', 'Loading…'));
+  else box.replaceChildren(el('div', 'empty', 'Loading…'));
+  const q = new URLSearchParams({ videoId: s.videoId, sort: commentSort });
+  if (continuation) q.set('continuation', continuation);
+  let data;
+  try { data = await api.get('/api/v1/song/comments?' + q); }
+  catch (e) {
+    if (mine !== commentSeq) return;
+    commentsFor = null;
+    if (!e.status) handleErr(e);
+    return box.replaceChildren(el('div', 'empty', e.status ? e.message : 'Could not reach the player.'));
+  }
+  if (mine !== commentSeq) return;
+  if (!continuation) {
+    box.replaceChildren();
+    $('cmtCount').textContent = (data && data.commentCount) || '';
+    if (!data || !data.commentsAvailable) return box.replaceChildren(el('div', 'empty', 'Comments are turned off for this track.'));
+    if (!data.comments || !data.comments.length) return box.replaceChildren(el('div', 'empty', 'No comments yet.'));
+  } else if (more) more.remove();
+  for (const c of data.comments || []) box.appendChild(commentNode(c));
+  if (data.continuation) {
+    const wrap = el('div', 'sec-more');
+    const b = el('button', 'txtbtn', 'Load more');
+    b.type = 'button';
+    b.onclick = () => loadComments(false, data.continuation);
+    wrap.appendChild(b);
+    box.appendChild(wrap);
+  }
+}
+
+function setCommentSort(sort) {
+  commentSort = sort;
+  for (const [id, v] of [['bCmtTop', 'top'], ['bCmtNew', 'newest']]) {
+    $(id).classList.toggle('on', v === sort);
+    $(id).setAttribute('aria-pressed', String(v === sort));
+  }
+  loadComments(true);
+}
+$('bCmtTop').onclick = () => setCommentSort('top');
+$('bCmtNew').onclick = () => setCommentSort('newest');
 
 /* ---------------- recently played ----------------
    The page is told what is playing and forgets it the moment the next track
@@ -3396,12 +4060,12 @@ track.addEventListener('keydown', (e) => {
    third tab beside these two was a button with nothing written on it. So the
    panes and the tabs are two lists now, and the tablist simply clears its
    selection while search is up -- which is what the bottom nav already does. */
-const PANES = ['queue', 'lyrics', 'search'];
-const TABS = ['queue', 'lyrics'];
-const VIEWS = ['player', 'queue', 'lyrics', 'search'];
+const PANES = ['queue', 'lyrics', 'search', 'home', 'related', 'comments'];
+const TABS = ['queue', 'lyrics', 'related', 'comments'];
+const VIEWS = ['player', 'queue', 'lyrics', 'search', 'home', 'related', 'comments'];
 /* search is a view but not a nav stop: the header's magnifier is the way in, so
    the bar shows three and simply clears its selection while search is up */
-const NAV_VIEWS = ['player', 'queue', 'lyrics'];
+const NAV_VIEWS = ['player', 'home', 'queue', 'lyrics'];
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
 /* the pane you left it on is nearly always the one you want back */
@@ -3439,6 +4103,9 @@ function setTab(name) {
   syncArtGrowth();
   if (name === 'queue') loadQueue();
   if (name === 'search' && !searchFound) renderHistory();
+  if (name === 'home') showHome();
+  if (name === 'related') loadRelated();
+  if (name === 'comments') loadComments();
   if (name === 'lyrics') {
     if (lyricFor !== (state.song && state.song.videoId)) loadLyrics();
     // a hidden pane has no layout, so the slide has to be recomputed on reveal
@@ -3458,7 +4125,25 @@ function setView(name) {
   if (name !== 'player') setTab(name);
 }
 
-for (const t of TABS) $('tab' + cap(t)).onclick = () => setTab(t);
+/* on a phone the pane is a whole view, so a tab goes through the nav's route
+   and the bar stays in step with what is showing */
+/* Shows what this player can do and hides what it cannot. Everything newer is
+   hidden from the moment a connection starts until its /doc has answered; a
+   pane left open on something this player lacks falls back to the queue, but
+   only once the answer is in, so a reconnect does not lose your place. */
+function applyEndpoints() {
+  const can = { home: has.home(), related: has.related(), comments: has.comments() };
+  $('btnHome').hidden = $('navHome').hidden = !can.home;
+  $('tabRelated').hidden = !can.related;
+  $('tabComments').hidden = !can.comments;
+  $('bRadio').hidden = !has.radio();
+  $('bPlayerFull').hidden = !has.playerFull();
+  if (!endpointsKnown) return;
+  if (can[tab] === false) { if (view === tab) setView('queue'); else setTab('queue'); }
+  else if (tab === 'home' || tab === 'related' || tab === 'comments') setTab(tab);
+}
+
+for (const t of TABS) $('tab' + cap(t)).onclick = () => (stacked.matches ? setView(t) : setTab(t));
 for (const v of NAV_VIEWS) $('nav' + cap(v)).onclick = () => setView(v);
 
 /* Left and right walk the list, Home and End jump to its ends, and the focused
@@ -3466,9 +4151,11 @@ for (const v of NAV_VIEWS) $('nav' + cap(v)).onclick = () => setView(v);
    role="tablist" and the reason each list is a single stop on the tab key. */
 function rovingTabs(container, names, choose, idOf) {
   container.addEventListener('keydown', (e) => {
-    const i = names.findIndex((n) => $(idOf(n)) === document.activeElement);
+    /* a tab the player cannot fill is hidden, and the arrows step over it */
+    const list = names.filter((n) => !$(idOf(n)).hidden);
+    const i = list.findIndex((n) => $(idOf(n)) === document.activeElement);
     if (i < 0) return;
-    const last = names.length - 1;
+    const last = list.length - 1;
     let next = null;
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = i === last ? 0 : i + 1;
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = i === 0 ? last : i - 1;
@@ -3476,8 +4163,8 @@ function rovingTabs(container, names, choose, idOf) {
     else if (e.key === 'End') next = last;
     if (next === null) return;
     e.preventDefault();
-    choose(names[next]);
-    $(idOf(names[next])).focus();
+    choose(list[next]);
+    $(idOf(list[next])).focus();
   });
 }
 rovingTabs(document.querySelector('.tabs'), TABS, setTab, (t) => 'tab' + cap(t));
@@ -3498,10 +4185,11 @@ function placeControls() {
   if (stacked.matches) {
     ctrls.insertBefore($('bShuffle'), $('bPrev'));
     ctrls.appendChild($('bRepeat'));
-    acts.append($('bLike'), $('bDislike'), $('bShare'));   // no room on the transport row
+    acts.append($('bLike'), $('bDislike'), $('bPlayerFull'), $('bShare'));   // no room on the transport row
   } else {
     right.appendChild($('bRepeat'));
     right.appendChild($('bShuffle'));
+    right.appendChild($('bPlayerFull'));
     right.appendChild($('bShare'));
     const track = document.querySelector('.pb-track');
     track.appendChild($('bLike'));
@@ -3545,6 +4233,11 @@ document.querySelector('.pb-track').addEventListener('click', (e) => {
 }, true);
 
 $('bQueueRefresh').onclick = () => loadQueue();
+$('bRadio').onclick = () => act(() => api.post('/api/v1/start-radio'), 'Radio started').then(() => setTimeout(() => loadQueue(true), 600));
+$('bPlayerFull').onclick = () => {
+  state.playerFull = !state.playerFull; renderTransport();
+  act(() => api.post('/api/v1/fullscreen', { state: state.playerFull }));
+};
 $('bQueueClear').onclick = () => act(() => api.del('/api/v1/queue'), 'Queue cleared').then(() => setTimeout(() => loadQueue(true), 400));
 $('searchForm').onsubmit = (e) => {
   e.preventDefault();
@@ -3595,6 +4288,11 @@ document.addEventListener('keydown', (e) => {
    fourth way in: it opens the pane and puts the caret in the box, which is what
    you came for. On a phone the pane is a whole view, so it goes through the
    bottom nav's route instead and stays in step with it. */
+/* pressed again from deep in an album or artist, it goes back to where Home started */
+$('btnHome').onclick = () => {
+  if (tab === 'home' && pages.length > 1) return openRoot(homeRoot);
+  if (stacked.matches) setView('home'); else setTab('home');
+};
 $('btnSearch').onclick = () => {
   if (stacked.matches) setView('search'); else setTab('search');
   $('searchInput').focus();
@@ -4065,7 +4763,13 @@ $('widgetCopy').onclick = async () => {
 function lyricProviderPrefs() {
   const d = store.data;
   if (!Array.isArray(d.lyricProviders) || !d.lyricProviders.length) {
-    d.lyricProviders = [{ id: 'lrclib', on: true }, { id: 'lyricsovh', on: true }];
+    d.lyricProviders = [{ id: 'lrclib', on: true }, { id: 'ytmusic', on: true }, { id: 'lyricsovh', on: true }];
+  }
+  /* an order saved before YouTube Music was a source gets it after LRCLIB:
+     timed lyrics still win, and the player's own beat a title search */
+  if (!d.lyricProviders.some(p => p.id === 'ytmusic')) {
+    const at = d.lyricProviders.findIndex(p => p.id === 'lrclib');
+    d.lyricProviders.splice(at + 1, 0, { id: 'ytmusic', on: true });
   }
   return d.lyricProviders;
 }
@@ -4079,7 +4783,7 @@ function renderLyricProviders() {
     if (!meta) return;
     const row = el('div', 'lp-row' + (p.on ? '' : ' off'));
     const n = el('div', 'n', meta.label);
-    n.appendChild(el('small', null, meta.hint));
+    n.appendChild(el('small', null, meta.needs && !meta.needs() ? 'Needs a newer YouTube Music player' : meta.hint));
     row.appendChild(n);
     const toggle = el('button', 'toggle' + (p.on ? ' on' : ''), p.on ? 'On' : 'Off');
     toggle.onclick = () => { p.on = !p.on; store.save(); renderLyricProviders(); };
@@ -4325,7 +5029,9 @@ function revive() {
 function connect() {
   clearInterval(songTimer); clearInterval(auxTimer); clearInterval(queueTimer);
   connected = false;
-  endpointsProbed = false; endpoints = new Set();
+  endpointsProbed = false; endpointsKnown = false; endpoints = new Set();
+  pages = []; relatedFor = null; commentsFor = null;
+  applyEndpoints();
   volumeSeeded = false;
   wsRetry = 0; lastPush = 0; queueSig = ''; authNoticeShown = false;
   if (!active()) {
