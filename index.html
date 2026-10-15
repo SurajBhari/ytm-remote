@@ -717,19 +717,17 @@ body.idle-hide,body.idle-hide *{cursor:none}
   body.idle-hide .bar>.track,body.idle-hide .bar>.pb-transport,body.idle-hide .bar>.pb-right{opacity:0}
   body.idle-hide .now-meta{opacity:0;transform:translateY(10px)}
 }
-/* with the bar gone, the seek bar's fill drops to the bottom edge and keeps the
-   track's progress there. Resting, the line sits exactly over the bar's fill
-   (--idle-from, measured in JS) but unseen; going idle it shows at once and
-   slides down while the bar fades around it, and waking it slides back up and
-   only disappears once it has landed on the fill again. `translate` carries
-   the slide so the per-frame scaleX in `transform` never fights it. */
+/* with the bar gone, the track's progress is kept as a line on the bottom edge.
+   There is only ever one seek bar on screen: the line fades in once the bar
+   has finished fading out, and waking drops it at once so the bar's own seek
+   bar is the only one coming back. (It used to slide between the two, which
+   put two bars on screen for the length of the slide.) */
 .idle-line{
   position:fixed;left:0;right:0;bottom:0;height:4px;z-index:5;pointer-events:none;
   background:var(--accent);transform-origin:left;transform:scaleX(0);
-  translate:0 var(--idle-from,0px);
-  opacity:0;transition:translate .6s ease,opacity 0s linear .6s;
+  opacity:0;transition:none;
 }
-body.idle-hide .idle-line{translate:0 0;opacity:1;transition:translate .6s ease,opacity 0s}
+body.idle-hide .idle-line{opacity:1;transition:opacity .3s ease .6s}
 body.no-idle-line .idle-line{display:none}
 @media(prefers-reduced-motion:reduce){
   .top,.side>.tabs,#paneQueue,#paneSearch,#paneHome,#paneRelated,#paneComments,.bar,.nav,.now .actions,.lyr-tune,.now-meta,.idle-line,body.idle-hide .idle-line{transition:none}
@@ -5089,20 +5087,7 @@ function armIdle() {
   clearTimeout(idleTimer);
   idleTimer = null;
   if (!store.data.idleHide || state.paused || !state.song || document.hidden || anyDialogOpen() || scrubbing) return;
-  /* placed now, so the line is already resting on the fill when the slide
-     starts -- set in the same frame as the class flip, it would have no
-     starting point to transition from */
-  placeIdleLine();
   idleTimer = setTimeout(() => { document.body.classList.add('idle-hide'); syncArtGrowth(); }, IDLE_DELAY);
-}
-
-/* the gap between the bottom edge and the seek bar's fill, which is where the
-   idle line starts its slide from and returns to. The bar only fades while
-   idle, so the fill keeps its place to be measured either way. */
-function placeIdleLine() {
-  const line = $('idleLine'), fill = $('fill').getBoundingClientRect();
-  const from = fill.height ? fill.top - (innerHeight - line.offsetHeight) : 0;
-  line.style.setProperty('--idle-from', from + 'px');
 }
 
 function applyIdleLine() {
@@ -5111,7 +5096,6 @@ function applyIdleLine() {
 applyIdleLine();
 
 function wakeIdle() {
-  if (document.body.classList.contains('idle-hide')) placeIdleLine();
   document.body.classList.remove('idle-hide');
   syncArtGrowth();
   armIdle();
