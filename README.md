@@ -86,9 +86,6 @@ these only when that player has it, so an older player just doesn't show them:
 - **Related** and **Comments** tabs for the track that is playing, with Top / Newest sorting
   for comments.
 - **Start radio** in Up next, and *Start radio* when you hold any track.
-- **Fullscreen on the player** — the screen button in the player bar toggles fullscreen on the
-  desktop app itself, which helps when it's on a TV. This is separate from the header's fullscreen
-  button, which only affects this page.
 
 ### Keyboard
 

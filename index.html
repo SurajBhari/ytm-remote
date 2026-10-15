@@ -1131,10 +1131,6 @@ body.offline .art-btn::after{content:none}
         <svg viewBox="0 0 24 24"><path class="ln" id="repeatIcon" d="M17 2.5l3 3-3 3M20 5.5H8a4 4 0 0 0-4 4v1M7 21.5l-3-3 3-3M4 18.5h12a4 4 0 0 0 4-4v-1"/></svg></button>
       <button class="ib small" id="bShuffle" aria-label="Shuffle" title="Shuffle (S)">
         <svg viewBox="0 0 24 24"><path class="ln" d="M3 6.5h2.5c5.5 0 7.5 11 13 11H21M3 17.5h2.5c2 0 3.4-1.5 4.6-3.4M13.9 9.9c1.2-1.9 2.6-3.4 4.6-3.4H21M18 3.5l3 3-3 3M18 14.5l3 3-3 3"/></svg></button>
-      <!-- fullscreen on the desktop player itself, for when it is on a TV;
-           the header's button is this page's own fullscreen -->
-      <button class="ib small" id="bPlayerFull" aria-label="Fullscreen on the player" aria-pressed="false" title="Fullscreen on the player" hidden>
-        <svg viewBox="0 0 24 24"><path class="ln" d="M3 5.5h18v11H3zM9 20.5h6M12 16.5v4M7.5 10.5V9h1.5M16.5 12v1.5H15"/></svg></button>
       <button class="ib small" id="bShare" aria-label="Share this track" title="Share">
         <svg viewBox="0 0 24 24"><path class="ln" d="M21 3 3 10.5l7 3 3 7.5zM10 13.5 21 3"/></svg></button>
     </div>
@@ -1496,8 +1492,7 @@ const has = {
   radio: () => supports('POST', '/api/v1/start-radio'),
   lyrics: () => supports('GET', '/api/v1/song/lyrics'),
   related: () => supports('GET', '/api/v1/song/related'),
-  comments: () => supports('GET', '/api/v1/song/comments'),
-  playerFull: () => supports('GET', '/api/v1/fullscreen') && supports('POST', '/api/v1/fullscreen')
+  comments: () => supports('GET', '/api/v1/song/comments')
 };
 
 /* ---------------- helpers ---------------- */
@@ -1632,7 +1627,7 @@ async function themeFromArt(url) {
 let connected = false;
 const state = {
   song: null, paused: true, duration: 0, elapsed: 0, at: 0,
-  volume: 0, muted: false, shuffle: false, repeat: 'NONE', like: null, playerFull: false
+  volume: 0, muted: false, shuffle: false, repeat: 'NONE', like: null
 };
 let scrubbing = false;
 let volDragging = false;
@@ -1702,7 +1697,7 @@ function handleErr(e) {
    quietly did nothing. Disabled rather than merely dimmed, so the keyboard and
    assistive tech are told the same thing the dimming says. */
 const LIVE_CONTROLS = ['bPlay', 'bPrev', 'bNext', 'bLike', 'bDislike', 'bShuffle',
-                       'bRepeat', 'bMute', 'artToggle', 'miniOpen', 'barTitle', 'vol', 'bPlayerFull'];
+                       'bRepeat', 'bMute', 'artToggle', 'miniOpen', 'barTitle', 'vol'];
 
 function renderConnection() {
   const ok = connected && !!active();
@@ -2153,8 +2148,6 @@ function renderTransport() {
     ? 'M17 2.5l3 3-3 3M20 5.5H8a4 4 0 0 0-4 4v1M7 21.5l-3-3 3-3M4 18.5h12a4 4 0 0 0 4-4v-1M10.8 10.6l1.7-1.1v5.5'
     : 'M17 2.5l3 3-3 3M20 5.5H8a4 4 0 0 0-4 4v1M7 21.5l-3-3 3-3M4 18.5h12a4 4 0 0 0 4-4v-1');
   $('bMute').classList.toggle('on', !!state.muted);
-  $('bPlayerFull').classList.toggle('on', !!state.playerFull);
-  $('bPlayerFull').setAttribute('aria-pressed', String(!!state.playerFull));
   $('volIcon').setAttribute('d', state.muted || state.volume === 0
     ? 'M3.5 9.5h3l4.5-4v13l-4.5-4h-3zM15.5 9.5l5 5M20.5 9.5l-5 5'
     : 'M3.5 9.5h3l4.5-4v13l-4.5-4h-3zM15 9.5a3.5 3.5 0 0 1 0 5M17.8 6.8a7.5 7.5 0 0 1 0 10.4');
@@ -2217,14 +2210,12 @@ async function pollSong() {
 async function pollAux() {
   if (!active()) return;
   try {
-    const [like, vol, sh, rep, full] = await Promise.all([
+    const [like, vol, sh, rep] = await Promise.all([
       api.get('/api/v1/like-state').catch(() => null),
       api.get('/api/v1/volume').catch(() => null),
       api.get('/api/v1/shuffle').catch(() => null),
-      api.get('/api/v1/repeat-mode').catch(() => null),
-      has.playerFull() ? api.get('/api/v1/fullscreen').catch(() => null) : null
+      api.get('/api/v1/repeat-mode').catch(() => null)
     ]);
-    if (full) state.playerFull = !!full.state;
     if (like) state.like = like.state;
     if (vol) {
       /* older plugin builds leave isMuted off the payload, and coercing that
@@ -4211,7 +4202,6 @@ function applyEndpoints() {
   $('tabRelated').hidden = !can.related;
   $('tabComments').hidden = !can.comments;
   $('bRadio').hidden = !has.radio();
-  $('bPlayerFull').hidden = !has.playerFull();
   if (!endpointsKnown) return;
   if (can[tab] === false) { if (view === tab) setView('queue'); else setTab('queue'); }
   else if (tab === 'home' || tab === 'related' || tab === 'comments') setTab(tab);
@@ -4259,11 +4249,10 @@ function placeControls() {
   if (stacked.matches) {
     ctrls.insertBefore($('bShuffle'), $('bPrev'));
     ctrls.appendChild($('bRepeat'));
-    acts.append($('bLike'), $('bDislike'), $('bPlayerFull'), $('bShare'));   // no room on the transport row
+    acts.append($('bLike'), $('bDislike'), $('bShare'));   // no room on the transport row
   } else {
     right.appendChild($('bRepeat'));
     right.appendChild($('bShuffle'));
-    right.appendChild($('bPlayerFull'));
     right.appendChild($('bShare'));
     const track = document.querySelector('.pb-track');
     track.appendChild($('bLike'));
@@ -4308,10 +4297,6 @@ document.querySelector('.pb-track').addEventListener('click', (e) => {
 
 $('bQueueRefresh').onclick = () => loadQueue();
 $('bRadio').onclick = () => act(() => api.post('/api/v1/start-radio'), 'Radio started').then(() => setTimeout(() => loadQueue(true), 600));
-$('bPlayerFull').onclick = () => {
-  state.playerFull = !state.playerFull; renderTransport();
-  act(() => api.post('/api/v1/fullscreen', { state: state.playerFull }));
-};
 $('bQueueClear').onclick = () => act(() => api.del('/api/v1/queue'), 'Queue cleared').then(() => setTimeout(() => loadQueue(true), 400));
 $('searchForm').onsubmit = (e) => {
   e.preventDefault();
