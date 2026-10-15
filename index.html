@@ -410,6 +410,16 @@ body.art-resizing .lyrics.synced{transition:none}
 .lyrics.synced .lyric.on{opacity:1;color:var(--text);transform:scale(1);filter:blur(0);pointer-events:auto}
 /* hovering pulls a line back into focus, so you can read what you would seek to */
 @media(hover:hover) and (pointer:fine){.lyrics.synced .lyric.near:hover{opacity:.7;filter:blur(0);color:rgba(255,255,255,.9)}}
+/* Word-timed lines: each word fills from the left as it is sung, the way a
+   karaoke screen does it. --p is how far through the word the singer is; only
+   the line in focus is painted this way, so the rest of the window reads exactly
+   as line-timed lyrics do. */
+.lyrics.synced .lyric.on .w{
+  /* the edge is a short fade rather than a cut through a letter; stretched by
+     a tenth so it starts fully unlit at 0% and ends fully lit at 100% */
+  background:linear-gradient(90deg,var(--text) calc(var(--p,0%) * 1.1 - 10%),rgba(255,255,255,.4) calc(var(--p,0%) * 1.1));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
 .lyrics.synced .lyric.blank{font-size:26px}
 .lyrics.synced .lyric.blank.on{color:var(--accent)}
 
@@ -2684,6 +2694,44 @@ async function fetchFromLyricsOvh(song, ctx) {
   return null;
 }
 
+/* LyricsPlus gathers Apple Music, Musixmatch and QQ Music's timings, which go
+   down to the word. It is held to the same length test as LRCLIB where it can
+   be: timing written against a different cut of the song is worse than none.
+   It reports a length in two places, and either may simply be ours handed
+   back -- asked for a 400s Tum Hi Ho, it "found" one -- so only a figure that
+   differs from what was sent counts as a measurement. It does use ours to
+   choose between versions, so when both are echoes the hit is taken on trust,
+   short of lyrics that run past the end of the song. */
+const LYRICSPLUS = 'https://lyricsplus.prjktla.my.id/v2/lyrics/get';
+const clockSecs = (t) => String(t || '').split(':').reduce((a, p) => a * 60 + (parseFloat(p) || 0), 0);
+async function fetchFromLyricsPlus(song, ctx) {
+  const dur = Math.round(song.songDuration || 0);
+  const q = new URLSearchParams({ title: song.title || '', artist: primaryArtist(song.artist) || '' });
+  if (dur) q.set('duration', String(dur));
+  let j = null;
+  try { j = await getJSON(LYRICSPLUS + '?' + q, ctx); } catch {}
+  if (!j || !Array.isArray(j.lyrics) || !j.lyrics.length) return null;
+  const picked = j.processingTime && j.processingTime.selectedSongMetadata;
+  if (j.type === 'Word' || j.type === 'Line') {
+    if (!dur) return null;
+    const measured = [picked && picked.duration, clockSecs(j.metadata && j.metadata.totalDuration)]
+      .filter(v => v && Math.abs(v - dur) >= 0.01);
+    if (measured.some(v => Math.abs(v - dur) > MAX_DRIFT)) return null;
+    const last = j.lyrics[j.lyrics.length - 1];
+    if ((last.time + (last.duration || 0)) / 1000 > dur + MAX_DRIFT) return null;
+    const lines = j.lyrics.map((l) => ({
+      t: l.time / 1000,
+      text: l.text || '',
+      words: j.type === 'Word' && Array.isArray(l.syllabus) && l.syllabus.length
+        ? l.syllabus.map((w) => ({ t: w.time / 1000, d: Math.max(w.duration, 1) / 1000, text: w.text }))
+        : null
+    }));
+    return { synced: true, lines, plain: lines.map(l => l.text).join('\n'), note: '' };
+  }
+  const plain = j.lyrics.map(l => l.text || '').join('\n').trim();
+  return plain ? { synced: false, lines: null, plain, note: '' } : null;
+}
+
 /* The lyrics YouTube Music itself shows, asked of the player by video id, so
    there is no title matching to get wrong -- but they come untimed. */
 async function fetchFromPlayer(song) {
@@ -2700,6 +2748,7 @@ async function fetchFromPlayer(song) {
 /* the Lyrics tab in the Info panel lists these in whatever order the user has
    set, and skips whichever are turned off -- see lyricProviderPrefs() */
 const LYRIC_PROVIDERS = {
+  lyricsplus: { label: 'LyricsPlus', hint: 'Word-by-word timing from Apple Music, Musixmatch and QQ Music', fetch: fetchFromLyricsPlus },
   lrclib: { label: 'LRCLIB', hint: 'Timed lyrics when a matching upload exists', fetch: fetchFromLRCLIB },
   ytmusic: { label: 'YouTube Music', hint: 'The lyrics the player shows, no timing', fetch: fetchFromPlayer, needs: () => has.lyrics() },
   lyricsovh: { label: 'Lyrics.ovh', hint: 'Plain text only, no timing', fetch: fetchFromLyricsOvh }
@@ -2752,7 +2801,8 @@ async function prefetchNextLyrics() {
   } catch {} finally { prefetching = false; }
 }
 
-let lyricLines = null;      // [{t,text}] when synced
+let lyricLines = null;      // [{t,text,words?}] when synced
+let lyricWords = [];        // per line: [{t,d,node,p}] when the line is word-timed
 let lyricNodes = [];
 let lyricWrap = null;       // the sliding list, positioned by focusLyric
 let lyricIdx = -1;
@@ -2767,7 +2817,7 @@ function lyricsMessage(strong, rest) {
 
 async function loadLyrics(force) {
   const s = state.song;
-  lyricLines = null; lyricNodes = []; lyricIdx = -1; lyricWrap = null; offsetLabel = null;
+  lyricLines = null; lyricNodes = []; lyricWords = []; lyricIdx = -1; lyricWrap = null; offsetLabel = null;
   if (!s || !s.videoId) { lyricFor = null; return lyricsMessage('Lyrics', 'Play a track to look up its lyrics.'); }
   lyricFor = s.videoId;
   lyricOffset = offsets()[s.videoId] || 0;
@@ -2800,8 +2850,16 @@ function renderLyrics(res) {
 
   if (res.synced) {
     lyricLines = res.lines;
-    lyricNodes = res.lines.map((ln) => {
-      const b = el('button', 'lyric' + (ln.text ? '' : ' blank'), ln.text || '♪');
+    lyricWords = [];
+    lyricNodes = res.lines.map((ln, i) => {
+      const b = el('button', 'lyric' + (ln.text ? '' : ' blank'), ln.words ? null : (ln.text || '♪'));
+      if (ln.words) {
+        lyricWords[i] = ln.words.map((w) => {
+          const node = el('span', 'w', w.text);
+          b.appendChild(node);
+          return { t: w.t, d: w.d, node, p: -1 };
+        });
+      }
       b.type = 'button';
       b.onclick = () => {
         const at = ln.t + lyricOffset;
@@ -2812,7 +2870,7 @@ function renderLyrics(res) {
       return b;
     });
   } else {
-    lyricLines = null; lyricNodes = [];
+    lyricLines = null; lyricNodes = []; lyricWords = [];
     for (const line of res.plain.split('\n')) {
       wrap.appendChild(el('div', 'lyric' + (line.trim() ? '' : ' blank'), line.trim() || ' '));
     }
@@ -2840,9 +2898,25 @@ function syncLyrics() {
   let i = lyricIdx;
   if (i < 0 || now < lyricLines[i].t) i = -1;            // seeked backwards
   while (i + 1 < lyricLines.length && lyricLines[i + 1].t <= now) i++;
-  if (i === lyricIdx) return;
-  lyricIdx = i;
-  focusLyric(i);
+  if (i !== lyricIdx) {
+    lyricIdx = i;
+    focusLyric(i);
+  }
+  syncWords(now - LYRIC_LEAD);
+}
+
+/* The line is brought into focus a beat early so the eye is there in time, but
+   a word lighting early reads as wrong, so the fill runs on the unled clock.
+   Only the focused line is touched, and only words whose fill has moved. */
+function syncWords(now) {
+  const words = lyricWords[lyricIdx];
+  if (!words) return;
+  for (const w of words) {
+    const p = Math.round(Math.max(0, Math.min(1, (now - w.t) / w.d)) * 100);
+    if (p === w.p) continue;
+    w.p = p;
+    w.node.style.setProperty('--p', p + '%');
+  }
 }
 
 /* lights the active line plus two either side and slides the list so the
@@ -4763,8 +4837,10 @@ $('widgetCopy').onclick = async () => {
 function lyricProviderPrefs() {
   const d = store.data;
   if (!Array.isArray(d.lyricProviders) || !d.lyricProviders.length) {
-    d.lyricProviders = [{ id: 'lrclib', on: true }, { id: 'ytmusic', on: true }, { id: 'lyricsovh', on: true }];
+    d.lyricProviders = [{ id: 'lyricsplus', on: true }, { id: 'lrclib', on: true }, { id: 'ytmusic', on: true }, { id: 'lyricsovh', on: true }];
   }
+  /* word timing beats line timing, so a saved order gains it at the top */
+  if (!d.lyricProviders.some(p => p.id === 'lyricsplus')) d.lyricProviders.unshift({ id: 'lyricsplus', on: true });
   /* an order saved before YouTube Music was a source gets it after LRCLIB:
      timed lyrics still win, and the player's own beat a title search */
   if (!d.lyricProviders.some(p => p.id === 'ytmusic')) {

@@ -64,9 +64,12 @@ both off.
 ![The Search tab, results ready to drop into the queue](screenshot-search.png)
 
 **Lyrics** — time-synced where they exist, scrolling themselves and dimming what has passed.
-Tap any line to jump to that moment. Sources are tried in order and synced always wins over
-plain: [LRCLIB](https://lrclib.net) (timed LRC), then the lyrics YouTube Music itself shows
-(newer players only), then [lyrics.ovh](https://lyrics.ovh) as a plain-text backstop. Candidates are ranked by track length, because the same title is often
+Where the timing goes down to the word, each word fills in as it is sung. Tap any line to
+jump to that moment. Sources are tried in order (reorder or turn them off under **Info →
+Lyrics**): [LyricsPlus](https://github.com/ibratabian17/lyricsplus) (word-by-word, from Apple
+Music, Musixmatch and QQ Music), [LRCLIB](https://lrclib.net) (timed LRC), the lyrics YouTube
+Music itself shows (newer players only), then [lyrics.ovh](https://lyrics.ovh) as a
+plain-text backstop. Candidates are ranked by track length, because the same title is often
 uploaded at several different durations and the wrong one drifts audibly.
 
 ![The Lyrics tab, the current line lifted out of the ones around it](screenshot-lyrics.png)
