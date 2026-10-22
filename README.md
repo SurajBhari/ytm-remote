@@ -72,11 +72,16 @@ The sources (reorder or turn them off in the same place): [LyricsPlus](https://g
 Music, Musixmatch and QQ Music), [LRCLIB](https://lrclib.net) (timed LRC), the lyrics YouTube
 Music itself shows (newer players only), then [lyrics.ovh](https://lyrics.ovh) as a
 plain-text backstop. The lyrics font is yours to pick there too, from ten display faces
-(Unbounded by default); every line carries a drop shadow so it stays readable over pale
-covers. Candidates are ranked by track length, because the same title is often
+(Unbounded by default); the line being sung carries a drop shadow so it stays readable over
+pale covers. Candidates are ranked by track length, because the same title is often
 uploaded at several different durations and the wrong one drifts audibly.
 
-![The Lyrics tab, the current line lifted out of the ones around it](screenshot-lyrics.png)
+**Idle mode** — after five seconds of a track playing untouched, the controls fade away,
+the cover grows, and the seek bar slides down into a thin progress line along the bottom
+edge. Moving the mouse, tapping or pausing brings everything back. Both are switches under
+**Info → Display**. On the Lyrics tab this turns the page into a lyrics screen:
+
+![Idle mode on the Lyrics tab: the cover and title on the left, the current line lifted out of the ones around it](screenshot-lyrics.png)
 
 ### With a newer player
 
