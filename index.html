@@ -2788,6 +2788,11 @@ const lyricRank = (hit) => !hit ? 0
 /* a source that has not answered by now is not going to be the one that helps */
 const LYRIC_TIMEOUT = 10000;
 
+const askSource = (provider, song, ctx) => Promise.race([
+  Promise.resolve().then(() => provider.fetch(song, ctx)).catch(() => null),
+  new Promise(r => setTimeout(() => r(null), LYRIC_TIMEOUT))
+]);
+
 async function fetchLyrics(song, ctx) {
   const sources = lyricProviderPrefs()
     .filter(p => p.on && LYRIC_PROVIDERS[p.id])
@@ -2796,8 +2801,7 @@ async function fetchLyrics(song, ctx) {
   if (!store.data.smartLyrics) {
     /* first in your order with anything at all */
     for (const provider of sources) {
-      let hit = null;
-      try { hit = await provider.fetch(song, ctx); } catch {}
+      const hit = await askSource(provider, song, ctx);
       if (lyricRank(hit)) return hit;
     }
     return null;
@@ -2806,10 +2810,7 @@ async function fetchLyrics(song, ctx) {
      your order breaking ties. The answers are read back in that order, so
      the moment a word-timed one turns up, everything ahead of it has already
      answered with less -- nothing can beat it, and the rest are not waited on. */
-  const asks = sources.map(provider => Promise.race([
-    Promise.resolve().then(() => provider.fetch(song, ctx)).catch(() => null),
-    new Promise(r => setTimeout(() => r(null), LYRIC_TIMEOUT))
-  ]));
+  const asks = sources.map(provider => askSource(provider, song, ctx));
   let best = null, bestRank = 0;
   for (const ask of asks) {
     const hit = await ask;
