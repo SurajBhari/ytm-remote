@@ -2729,14 +2729,43 @@ async function fetchFromLyricsOvh(song, ctx) {
    differs from what was sent counts as a measurement. It does use ours to
    choose between versions, so when both are echoes the hit is taken on trust,
    short of lyrics that run past the end of the song. */
+/* Two public servers run it. Each is often down or overloaded in its own way, so
+   both are asked and the better answer kept. binimum's only answers the older
+   v1 shape: word timing as one flat run of syllables, each ending its line or not. */
 const LYRICSPLUS = 'https://lyricsplus.prjktla.my.id/v2/lyrics/get';
+const LYRICSPLUS_V1 = 'https://lyricsplus.binimum.org/v1/lyrics/get';
+function lyricsPlusV1toV2(j) {
+  if (!j || !Array.isArray(j.lyrics) || j.type === 'Line' || String(j.type).toLowerCase() !== 'syllable') return j;
+  const lines = [];
+  let cur = null;
+  for (const s of j.lyrics) {
+    if (!cur) cur = { time: s.time, duration: 0, text: '', syllabus: [] };
+    cur.text += s.text;
+    cur.syllabus.push({ time: s.time, duration: s.duration, text: s.text });
+    if (s.isLineEnding === 1) {
+      cur.time = Math.min(...cur.syllabus.map(w => w.time));
+      cur.duration = Math.max(...cur.syllabus.map(w => w.time + w.duration)) - cur.time;
+      cur.text = cur.text.trim();
+      lines.push(cur);
+      cur = null;
+    }
+  }
+  return { ...j, type: 'Word', lyrics: lines };
+}
 const clockSecs = (t) => String(t || '').split(':').reduce((a, p) => a * 60 + (parseFloat(p) || 0), 0);
 async function fetchFromLyricsPlus(song, ctx) {
   const dur = Math.round(song.songDuration || 0);
   const q = new URLSearchParams({ title: song.title || '', artist: primaryArtist(song.artist) || '' });
   if (dur) q.set('duration', String(dur));
-  let j = null;
-  try { j = await getJSON(LYRICSPLUS + '?' + q, ctx); } catch {}
+  const [a, b] = await Promise.all([
+    getJSON(LYRICSPLUS + '?' + q, ctx).catch(() => null),
+    getJSON(LYRICSPLUS_V1 + '?' + q, ctx).catch(() => null)
+  ]);
+  const hitA = readLyricsPlus(a, dur), hitB = readLyricsPlus(lyricsPlusV1toV2(b), dur);
+  return lyricRank(hitB) > lyricRank(hitA) ? hitB : hitA;
+}
+
+function readLyricsPlus(j, dur) {
   if (!j || !Array.isArray(j.lyrics) || !j.lyrics.length) return null;
   const picked = j.processingTime && j.processingTime.selectedSongMetadata;
   if (j.type === 'Word' || j.type === 'Line') {
