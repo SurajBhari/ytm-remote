@@ -740,8 +740,31 @@ body.idle-hide,body.idle-hide *{cursor:none}
 }
 body.idle-hide .idle-line{opacity:1;transition:opacity .3s ease .6s}
 body.no-idle-line .idle-line{display:none}
+/* paused and left alone long enough (Info -> Display), the whole page gives
+   way to a clock. The app fades out rather than being covered, so the dimmed
+   cover wash behind it is what the clock sits on. The face drifts a few
+   pixels each minute so a screen left on it all night doesn't burn the
+   digits in. While it fades out after a wake it keeps catching the pointer:
+   a tap's click lands after the touchstart that woke it, and would otherwise
+   press whatever button had just reappeared underneath. */
+.app{transition:opacity .8s ease}
+body.clock .app{opacity:0;pointer-events:none}
+.idle-clock{
+  position:fixed;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;
+  padding:16px;opacity:0;pointer-events:none;transition:opacity .8s ease;
+}
+body.clock .idle-clock,.idle-clock.leaving{pointer-events:auto}
+body.clock .idle-clock{opacity:1}
+body.clock,body.clock *{cursor:none}
+.clk-face{text-align:center;min-width:0;max-width:100%;transition:transform 2s ease}
+.clk-time{font-size:clamp(64px,min(20vw,34vh),240px);font-weight:500;line-height:1;letter-spacing:-.02em;white-space:nowrap}
+.clk-time small{font-size:.24em;font-weight:400;letter-spacing:0;color:var(--text-2);margin-left:.25em}
+.clk-date{margin-top:12px;font-size:clamp(16px,min(2.6vw,4.5vh),28px);color:var(--text-2)}
+.clk-track{margin-top:24px;font-size:clamp(13px,1.6vw,16px);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clk-track:empty{display:none}
 @media(prefers-reduced-motion:reduce){
   .top,.side>.tabs,#paneQueue,#paneSearch,#paneHome,#paneRelated,#paneComments,.bar,.nav,.now .actions,.lyr-tune,.now-meta,.idle-line,body.idle-hide .idle-line{transition:none}
+  .app,.idle-clock,.clk-face{transition:none}
 }
 
 /* ============ tablet and below ============ */
@@ -1173,6 +1196,14 @@ body.offline .art-btn::after{content:none}
   </nav>
 </div>
 
+<div class="idle-clock" id="idleClock" aria-hidden="true">
+  <div class="clk-face" id="clockFace">
+    <div class="clk-time" id="clockTime"></div>
+    <div class="clk-date" id="clockDate"></div>
+    <div class="clk-track" id="clockTrack"></div>
+  </div>
+</div>
+
 <dialog id="dlg">
   <div class="dlg-head">Connections<span style="flex:1"></span><button class="txtbtn" id="dlgClose">Close</button></div>
   <div class="dlg-body">
@@ -1238,6 +1269,14 @@ body.offline .art-btn::after{content:none}
         keeps showing how far into the track you are.
       </div>
       <div class="widget-opts" id="displayIdleLine"></div>
+      <div class="label" style="margin-top:16px">Clock when paused</div>
+      <div class="hint" style="margin-bottom:8px">
+        Once the player has sat paused and untouched for this long, the page
+        turns into a large clock with the date, and the screen stays awake to
+        show it. Moving the mouse, tapping, a key, or the music starting again
+        brings everything back.
+      </div>
+      <div class="widget-opts" id="displayClock"></div>
       <div class="label" style="margin-top:16px">Demo mode</div>
       <div class="hint" style="margin-bottom:8px">
         Plays a fake track locally so the interface can be tried without the
@@ -1312,7 +1351,7 @@ body.offline .art-btn::after{content:none}
 /* ---------------- storage ---------------- */
 const KEY = 'ytmRemote.v1';
 const store = {
-  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, lyricFont: 'Unbounded', smartLyrics: true, demoMode: false, idleHide: true, idleLine: true },
+  data: { connections: [], activeId: null, seekStep: 10, tab: 'queue', view: 'player', remaining: false, history: [], widget: { theme: 'card', pause: 'dim' }, bgAnim: false, lyricFont: 'Unbounded', smartLyrics: true, demoMode: false, idleHide: true, idleLine: true, idleClock: 0 },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch {}
     if (!Array.isArray(this.data.connections)) this.data.connections = [];
@@ -2194,6 +2233,7 @@ function renderTransport() {
   /* a track already playing when the page opens never flips the paused flag,
      so without this nothing starts the countdown until the first input */
   if (!idleTimer && !document.body.classList.contains('idle-hide')) armIdle();
+  if (!clockTimer && !clockOn()) armClock();
 }
 
 /* The tab is the one place this page is seen while it is not being looked at,
@@ -5057,6 +5097,8 @@ for (const t of INFO_TABS) $('infoTab' + t).onclick = () => selectInfoTab(t);
 const DISPLAY_BG = [['off', 'Static background'], ['on', 'Animated background']];
 const DISPLAY_IDLE = [['off', 'Off'], ['on', 'On']];
 const DISPLAY_DEMO = [['off', 'Off'], ['on', 'On']];
+/* minutes paused before the clock takes over; 0 is off */
+const DISPLAY_CLOCK = [[0, 'Off'], [1, '1 min'], [5, '5 min'], [15, '15 min'], [30, '30 min']];
 
 function applyBgAnim() {
   document.body.classList.toggle('bg-anim', !!store.data.bgAnim);
@@ -5107,6 +5149,13 @@ function renderDisplayOpts() {
     b.onclick = () => { store.data.idleLine = val === 'on'; store.save(); renderDisplayOpts(); applyIdleLine(); };
     lineBox.appendChild(b);
   }
+  const clockBox = $('displayClock');
+  clockBox.replaceChildren();
+  for (const [val, label] of DISPLAY_CLOCK) {
+    const b = el('button', val === (+store.data.idleClock || 0) ? 'on' : '', label);
+    b.onclick = () => { store.data.idleClock = val; store.save(); renderDisplayOpts(); wakeIdle(); };
+    clockBox.appendChild(b);
+  }
   const demoBox = $('displayDemo');
   demoBox.replaceChildren();
   for (const [val, label] of DISPLAY_DEMO) {
@@ -5153,7 +5202,8 @@ let wakeLock = null;
 
 async function syncWakeLock() {
   if (!('wakeLock' in navigator)) return;
-  const want = !state.paused && !document.hidden && !!state.song;
+  /* the paused clock is meant to be looked at, so it holds the screen on too */
+  const want = !document.hidden && ((!state.paused && !!state.song) || clockOn());
   try {
     if (want && !wakeLock) {
       wakeLock = await navigator.wakeLock.request('screen');
@@ -5195,6 +5245,64 @@ function wakeIdle() {
   document.body.classList.remove('idle-hide');
   syncArtGrowth();
   armIdle();
+  hideClock();
+  armClock();
+}
+
+/* ---------------- paused clock ----------------
+   The other half of idle: where idle-hide is for a track playing untouched,
+   this is for a player left paused. After the minutes chosen in Info ->
+   Display the page fades out behind a clock (see .idle-clock in the
+   stylesheet). Every wake above re-arms it, so it only ever counts time
+   that was both paused and untouched; the music resuming goes through
+   setPaused() and wakeIdle(), which takes the clock straight back down. */
+let clockTimer = null, clockTick = null;
+function clockOn() { return document.body.classList.contains('clock'); }
+
+function armClock() {
+  clearTimeout(clockTimer);
+  clockTimer = null;
+  const mins = +store.data.idleClock || 0;
+  if (!mins || !state.paused || clockOn() || document.hidden || anyDialogOpen() || scrubbing) return;
+  clockTimer = setTimeout(showClock, mins * 60000);
+}
+
+function showClock() {
+  clockTimer = null;
+  renderClock();
+  $('idleClock').classList.remove('leaving');
+  document.body.classList.add('clock');
+  syncWakeLock();
+}
+
+function hideClock() {
+  if (!clockOn()) return;
+  document.body.classList.remove('clock');
+  clearTimeout(clockTick);
+  clockTick = null;
+  const box = $('idleClock');
+  box.classList.add('leaving');
+  setTimeout(() => box.classList.remove('leaving'), 500);
+  syncWakeLock();
+}
+
+/* redrawn on each minute boundary rather than every second -- nothing on the
+   face changes in between */
+function renderClock() {
+  clearTimeout(clockTick);
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).formatToParts(now);
+  const time = parts.filter(p => p.type !== 'dayPeriod').map(p => p.value).join('').trim();
+  const period = parts.find(p => p.type === 'dayPeriod');
+  const t = $('clockTime');
+  t.replaceChildren(time);
+  if (period) t.appendChild(el('small', '', period.value));
+  $('clockDate').textContent = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  const s = state.song;
+  $('clockTrack').textContent = s && s.title ? 'Paused \u2014 ' + [s.title, s.artist].filter(Boolean).join(' \u2022 ') : '';
+  const dx = (Math.random() * 2 - 1) * 2, dy = (Math.random() * 2 - 1) * 2;
+  $('clockFace').style.transform = `translate(${dx.toFixed(2)}vmin,${dy.toFixed(2)}vmin)`;
+  clockTick = setTimeout(renderClock, 60000 - now.getSeconds() * 1000 - now.getMilliseconds() + 50);
 }
 
 for (const ev of ['mousemove', 'mousedown', 'keydown', 'wheel']) {

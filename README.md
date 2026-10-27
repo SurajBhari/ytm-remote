@@ -79,7 +79,9 @@ uploaded at several different durations and the wrong one drifts audibly.
 **Idle mode** — after five seconds of a track playing untouched, the controls fade away,
 the cover grows, and the seek bar slides down into a thin progress line along the bottom
 edge. Moving the mouse, tapping or pausing brings everything back. Both are switches under
-**Info → Display**. On the Lyrics tab this turns the page into a lyrics screen:
+**Info → Display**, along with **Clock when paused**: left paused and untouched for 1, 5, 15
+or 30 minutes, the page turns into a large clock with the date and keeps the screen awake
+(off by default). On the Lyrics tab idle mode turns the page into a lyrics screen:
 
 ![Idle mode on the Lyrics tab: the cover and title on the left, the current line lifted out of the ones around it](screenshot-lyrics.png)
 
